@@ -2,15 +2,13 @@
 from setuptools import setup, find_packages
 
 
-
-
-VERSION = '0.0.1'
+VERSION = '0.0.2'
 DESCRIPTION = 'Python package for hexagonal binning of high-resolution spatial transcriptomic data'
 LONG_DESCRIPTION = 'Python package for hexagonal binning of high-resolution spatial transcriptomic data, for more information see https://github.com/BKover99/pseudovisium'
 
 
 setup(
-    name="yeastmlp",
+    name="Pseudovisium",
     version=VERSION,
     author="Bence Kover",
     author_email="<kover.bence@gmail.com>",
