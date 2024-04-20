@@ -27,7 +27,9 @@ Technologies tried include:
 To start using Pseudovisium, simply install the package and explore the documentation and examples provided. Pseudovisium is open-source and actively maintained, ensuring continuous improvements and support for the spatial transcriptomics community.
 
 Pseudovisium is available on PyPI and can be easily installed using pip:
-pip install Pseudovisium
+
+###### pip install Pseudovisium
+
 For more information and the latest version, visit the Pseudovisium PyPI page https://pypi.org/project/Pseudovisium/.
 
 
