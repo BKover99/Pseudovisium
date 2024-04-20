@@ -37,5 +37,10 @@ For more information and the latest version, visit the Pseudovisium PyPI page ht
 - [ ] Adding supporting Colab notebooks
 - [ ] Releasing all data used in this work on OneDrive
 - [ ] Tidying up all code
-- [ ] Posting pre-print to Biorxiv https://www.biorxiv.org/content/10.1101/2023.12.15.571870v2
+- [ ] Posting pre-print to Biorxiv
 - [ ] Publication of peer-reviewed research article
+
+### Author
+Bence Kover
+https://twitter.com/kover_bence
+https://www.linkedin.com/in/ben-kover/
