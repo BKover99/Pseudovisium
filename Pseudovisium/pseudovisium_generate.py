@@ -146,6 +146,30 @@ def preprocess_csv(csv_file, batch_size, fieldnames):
 
     tmp_dir = tempfile.mkdtemp(prefix="tmp_hexa")
     print(f"Created temporary directory {tmp_dir}")
+    #if csv_file is .gz, then open it with gzip
+    if csv_file.endswith('.gz'):
+        with gzip.open(csv_file, 'rt') as file:
+            reader = csv.DictReader(file)
+            header = next(reader)  # Read the header row
+            batch_num = 0
+
+            while True:
+                batch = list(itertools.islice(reader, batch_size))
+                if not batch:
+                    break  # Exit the loop if batch is empty
+
+                batch_file = os.path.join(tmp_dir, f"batch_{batch_num}.csv")
+                with open(batch_file, 'w', newline='') as batch_csv:
+                    writer = csv.writer(batch_csv)
+                    writer.writerow(fieldnames)  # Write header using the provided fieldnames
+                    writer.writerows([[row[field] for field in fieldnames] for row in batch])  # Write rows
+
+                batch_num += 1
+                print(f"Created batch {batch_num}")
+
+        print(f"Finished preprocessing. Total batches created: {batch_num}")
+        return tmp_dir, batch_num
+
 
     with open(csv_file, 'r') as file:
         reader = csv.DictReader(file)
@@ -708,9 +732,14 @@ def create_pseudovisium(path,hexagon_counts,hexagon_cell_counts,hexagon_quality,
     rows = [[feature, feature, 'Gene Expression'] for feature in features]
 
     print("Creating features.tsv.gz file in spatial folder.")
-    with gzip.open(folderpath + '/features.tsv.gz', 'wt', newline='') as f_out:
+    with open(folderpath + '/features.tsv', 'wt', newline='', encoding='utf-8') as f_out:
         writer = csv.writer(f_out, delimiter='\t')
         writer.writerows(rows)
+    
+    # Create a features.tsv.gz file
+    with open(folderpath + '/features.tsv', 'rb') as f_in, gzip.open(folderpath + '/features.tsv.gz', 'wb') as f_out:
+        f_out.writelines(f_in)
+        
 
  ############################################## ##############################################
     
