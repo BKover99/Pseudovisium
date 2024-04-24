@@ -3,27 +3,24 @@ import json
 import matplotlib.pyplot as plt
 from matplotlib.patches import RegularPolygon
 import numpy as np
-import mpld3
 import pandas as pd
 from pysal.lib import weights
 from pysal.explore import esda
 import geopandas as gpd
-import shapely
-from shapely.geometry import Point
 import seaborn as sns
-import matplotlib.pyplot as plt
-from io import BytesIO
-import base64
 import scipy.stats as stats
 from concurrent.futures import ProcessPoolExecutor
 from tqdm import tqdm
 import os
 import datetime
-import matplotlib.pyplot as plt
-from matplotlib.collections import PathCollection
+import base64
+from shapely.geometry import Point
+from libpysal import weights
+from esda import Moran
 from adjustText import adjust_text
 from io import BytesIO
 import base64
+
 
 
 def generate_qc_report(folders, output_folder="/Users/k23030440/", gene_names=["RYR3", "AQP4", "THBS1"], include_morans_i=False,max_workers=4):
@@ -33,7 +30,7 @@ def generate_qc_report(folders, output_folder="/Users/k23030440/", gene_names=["
     output_folder = output_folder if output_folder[-1]=="/" else output_folder + "/"
 
     replicates_data = []
-    for folder in folders:
+    for folder in tqdm(folders, desc="Processing folders"):
         # Extract the dataset name from the folder path
         dataset_name = folder.split("/")[-2]
 
@@ -119,7 +116,9 @@ def generate_qc_report(folders, output_folder="/Users/k23030440/", gene_names=["
         median_features = np.median(grouped_matrix)
         cv_features = np.std(grouped_matrix) / np.mean(grouped_matrix)
 
+        number_of_probes = len(features)
         number_of_genes = len(features[~features["Gene_ID"].str.contains("control|ctrl|pos|neg|Ctrl|blank|Control|Blank|BLANK")])
+        
 
         neg_control_probes = features[features["Gene_ID"].str.contains("Probe")].index + 1
         neg_control_counts = np.sum(matrix[matrix["Gene_ID"].isin(neg_control_probes)]["Counts"])
@@ -174,13 +173,14 @@ def generate_qc_report(folders, output_folder="/Users/k23030440/", gene_names=["
                 "Number of genes in at least 5% of hexagons": int(pct5_plex),
                 "Median counts per hexagon": int(median_counts),
                 "Median features per hexagon": int(median_features),
+                "Total number of probes (inc. ctrl)": int(number_of_probes),
                 "Number of genes": int(number_of_genes),
-                "Proportion of neg_control probes": np.round(prop_neg_control, 3),
+                "Proportion of neg_control probes": np.round(prop_neg_control, 5),
                 "Number of bad probes (Sum)": n_probes_not_working,
-                "Features CV": np.round(cv_features, 3),
-                "Counts CV": np.round(cv_counts, 3),
-                "Features Morans I": np.round(get_morans_i("features", matrix_joined, tissue_positions_list,max_workers=max_workers),3),
-                "Counts Morans I": np.round(get_morans_i("counts", matrix_joined, tissue_positions_list,max_workers=max_workers),3)
+                "Features CV": np.round(cv_features, 5),
+                "Counts CV": np.round(cv_counts, 5),
+                "Features Morans I": np.round(get_morans_i("features", matrix_joined, tissue_positions_list,max_workers=max_workers),5),
+                "Counts Morans I": np.round(get_morans_i("counts", matrix_joined, tissue_positions_list,max_workers=max_workers),5)
             },
             "matrix_joined": matrix_joined,
             "features": features,
@@ -201,23 +201,24 @@ def generate_qc_report(folders, output_folder="/Users/k23030440/", gene_names=["
             replicate_data["morans_i_stripplot_df"] = plot_df_morans_i
 
         if cell_info:
-            replicate_data["metrics_table_data"]["Median cells per hexagon"] = int(median_cells_per_hex)
+            replicate_data["metrics_table_data"]["Median density (cells per hexagon)"] = int(median_cells_per_hex)
             replicate_data["metrics_table_data"]["Median counts per cell"] = int(median_counts_per_cell)
-            replicate_data["metrics_table_data"]["Median pct unassigned"] = np.round(median_unassigned_pct, 3)
+            replicate_data["metrics_table_data"]["Median pct unassigned"] = np.round(median_unassigned_pct, 5)
             replicate_data["merged_assigned_unassigned"] = merged_assigned_unassigned
             replicate_data["cell_density_df"] = tissue_positions_pv_cell_hex_sum
 
-            replicate_data["metrics_table_data"]["Density CV"] = np.round(density_cv, 3)
-            replicate_data["metrics_table_data"]["Density Morans I"] = np.round(density_morans_i, 3)
+            replicate_data["metrics_table_data"]["Density (cells per hexagon) CV"] = np.round(density_cv, 5)
+            replicate_data["metrics_table_data"]["Density (cells per hexagon) Morans I"] = np.round(density_morans_i, 5)
 
         if quality_per_hexagon:
-            replicate_data["metrics_table_data"]["Pct hexagons with quality below 20"] = np.round(pct_hexagons_q_below_20, 3)
+            replicate_data["metrics_table_data"]["Pct hexagons with quality below 20"] = np.round(pct_hexagons_q_below_20, 5)
             replicate_data["hexagon_quality"] = hexagon_quality
-            replicate_data["metrics_table_data"]["Quality Morans I"] = np.round(get_morans_i("Quality", matrix_joined, tissue_positions_list,max_workers=max_workers),3)
+            replicate_data["metrics_table_data"]["Quality Morans I"] = np.round(get_morans_i("Quality", matrix_joined, tissue_positions_list,max_workers=max_workers),5)
+            replicate_data["metrics_table_data"]["Median hexagon quality"] = np.round(hexagon_quality["Quality"].median(), 5)
 
 
         if quality_per_probe:
-            replicate_data["metrics_table_data"]["Pct non-ctrl probes with quality below 20"] = np.round(pct_non_ctrl_probes_q_below_20, 3)
+            replicate_data["metrics_table_data"]["Pct non-ctrl probes with quality below 20"] = np.round(pct_non_ctrl_probes_q_below_20, 5)
             replicate_data["probe_quality"] = probe_quality
             plot_df_quality_per_probe = not_working_probe_based_on_quality(probe_quality, sample_id=dataset_name)
             replicate_data["probe_quality_stripplot_df"] = plot_df_quality_per_probe
@@ -265,6 +266,7 @@ def generate_qc_report(folders, output_folder="/Users/k23030440/", gene_names=["
 def generate_dashboard_html(replicates_data, gene_names, include_morans_i,quality_per_hexagon,quality_per_probe,cell_info):
     metrics_html = """
         <div id="metric-details">
+            <h2>Counts Table</h2>
             <table>
                 <thead>
                     <tr>
@@ -278,15 +280,157 @@ def generate_dashboard_html(replicates_data, gene_names, include_morans_i,qualit
                     </tr>
                 </thead>
                 <tbody>
-    """
-    for metric in replicates_data[0]['metrics_table_data']:
-        metrics_html += f"""
                     <tr>
-                        <td>{metric}</td>
+                        <td>Median counts per hexagon</td>
+        """
+    for replicate_data in replicates_data:
+        metrics_html += f"""
+                        <td>{replicate_data['metrics_table_data']['Median counts per hexagon']}</td>
+        """
+    metrics_html += """
+                    </tr>
+                    <tr>
+                        <td>Number of hexagons with at least 100 counts</td>
+        """
+    for replicate_data in replicates_data:
+        metrics_html += f"""
+                        <td>{replicate_data['metrics_table_data']['Number of hexagons with at least 100 counts']}</td>
+        """
+    metrics_html += """
+                    </tr>
+                    <tr>
+                        <td>Proportion of neg_control probes</td>
+        """
+    for replicate_data in replicates_data:
+        metrics_html += f"""
+                        <td>{replicate_data['metrics_table_data']['Proportion of neg_control probes']}</td>
+        """
+    metrics_html += """
+                    </tr>
+                    <tr>
+                        <td>Counts Morans I</td>
+        """
+    for replicate_data in replicates_data:
+        metrics_html += f"""
+                        <td>{replicate_data['metrics_table_data']['Counts Morans I']}</td>
+        """
+    metrics_html += """
+                    </tr>
+                    <tr>
+                        <td>Counts CV</td>
+        """
+    for replicate_data in replicates_data:
+        metrics_html += f"""
+                        <td>{replicate_data['metrics_table_data']['Counts CV']}</td>
+        """
+    metrics_html += """
+                    </tr>
+                </tbody>
+            </table>
+
+            <h2>Features Table</h2>
+            <table>
+                <thead>
+                    <tr>
+                        <th>Metric</th>
+    """
+    for replicate_data in replicates_data:
+        metrics_html += f"""
+                        <th>{replicate_data['dataset_name']}</th>
+        """
+    metrics_html += """
+                    </tr>
+                </thead>
+                <tbody>
+                    <tr>
+                        <td>Total number of probes (inc. ctrl)</td>
+        """
+    for replicate_data in replicates_data:
+        metrics_html += f"""
+                        <td>{replicate_data['metrics_table_data']['Total number of probes (inc. ctrl)']}</td>
+        """
+    metrics_html += """
+                    </tr>
+                    <tr>
+                        <td>Number of genes</td>
+        """
+    for replicate_data in replicates_data:
+        metrics_html += f"""
+                        <td>{replicate_data['metrics_table_data']['Number of genes']}</td>
+        """
+    metrics_html += """
+                    </tr>
+                    <tr>
+                        <td>Median features per hexagon</td>
+        """
+    for replicate_data in replicates_data:
+        metrics_html += f"""
+                        <td>{replicate_data['metrics_table_data']['Median features per hexagon']}</td>
+        """
+    metrics_html += """
+                    </tr>
+                    <tr>
+                        <td>Number of genes in at least 5% of hexagons</td>
+        """
+    for replicate_data in replicates_data:
+        metrics_html += f"""
+                        <td>{replicate_data['metrics_table_data']['Number of genes in at least 5% of hexagons']}</td>
+        """
+    metrics_html += """
+                    </tr>
+                    <tr>
+                        <td>Features Morans I</td>
+        """
+    for replicate_data in replicates_data:
+        metrics_html += f"""
+                        <td>{replicate_data['metrics_table_data']['Features Morans I']}</td>
+        """
+    metrics_html += """
+                    </tr>
+                    <tr>
+                        <td>Features CV</td>
+        """
+    for replicate_data in replicates_data:
+        metrics_html += f"""
+                        <td>{replicate_data['metrics_table_data']['Features CV']}</td>
+        """
+    metrics_html += """
+                    </tr>
+                </tbody>
+            </table>
+
+            <h2>Uninformative Probes Table</h2>
+            <table>
+                <thead>
+                    <tr>
+                        <th>Metric</th>
+    """
+    for replicate_data in replicates_data:
+        metrics_html += f"""
+                        <th>{replicate_data['dataset_name']}</th>
+        """
+    metrics_html += """
+                    </tr>
+                </thead>
+                <tbody>
+                    <tr>
+                        <td>Number of bad probes (Sum)</td>
+        """
+    for replicate_data in replicates_data:
+        metrics_html += f"""
+                        <td>{replicate_data['metrics_table_data']['Number of bad probes (Sum)']}</td>
+        """
+    metrics_html += """
+                    </tr>
+    """
+    if include_morans_i:
+        metrics_html += """
+                    <tr>
+                        <td>Number of bad probes (Morans I)</td>
         """
         for replicate_data in replicates_data:
             metrics_html += f"""
-                        <td>{replicate_data['metrics_table_data'][metric]}</td>
+                        <td>{replicate_data['metrics_table_data'].get('Number of bad probes (Morans I)', 'N/A')}</td>
             """
         metrics_html += """
                     </tr>
@@ -294,6 +438,135 @@ def generate_dashboard_html(replicates_data, gene_names, include_morans_i,qualit
     metrics_html += """
                 </tbody>
             </table>
+    """
+
+    if cell_info:
+        metrics_html += """
+            <h2>Cell Info Table</h2>
+            <table>
+                <thead>
+                    <tr>
+                        <th>Metric</th>
+        """
+        for replicate_data in replicates_data:
+            metrics_html += f"""
+                        <th>{replicate_data['dataset_name']}</th>
+            """
+        metrics_html += """
+                    </tr>
+                </thead>
+                <tbody>
+                    <tr>
+                        <td>Median counts per cell</td>
+        """
+        for replicate_data in replicates_data:
+            metrics_html += f"""
+                        <td>{replicate_data['metrics_table_data'].get('Median counts per cell', 'N/A')}</td>
+            """
+        metrics_html += """
+                    </tr>
+                    <tr>
+                        <td>Median pct unassigned</td>
+        """
+        for replicate_data in replicates_data:
+            metrics_html += f"""
+                        <td>{replicate_data['metrics_table_data'].get('Median pct unassigned', 'N/A')}</td>
+            """
+        metrics_html += """
+                    </tr>
+                    <tr>
+                        <td>Median density (cells per hexagon)</td>
+        """
+        for replicate_data in replicates_data:
+            metrics_html += f"""
+                        <td>{replicate_data['metrics_table_data'].get('Median density (cells per hexagon)', 'N/A')}</td>
+            """
+        metrics_html += """
+                    </tr>
+                    <tr>
+                        <td>Density (cells per hexagon) CV</td>
+        """
+        for replicate_data in replicates_data:
+            metrics_html += f"""
+                        <td>{replicate_data['metrics_table_data'].get('Density (cells per hexagon) CV', 'N/A')}</td>
+            """
+        metrics_html += """
+                    </tr>
+                    <tr>
+                        <td>Density (cells per hexagon) Morans I</td>
+        """
+        for replicate_data in replicates_data:
+            metrics_html += f"""
+                        <td>{replicate_data['metrics_table_data'].get('Density (cells per hexagon) Morans I', 'N/A')}</td>
+            """
+        metrics_html += """
+                    </tr>
+                </tbody>
+            </table>
+        """
+
+    if quality_per_hexagon:
+        metrics_html += """
+            <h2>Quality Table</h2>
+            <table>
+                <thead>
+                    <tr>
+                        <th>Metric</th>
+        """
+        for replicate_data in replicates_data:
+            metrics_html += f"""
+                        <th>{replicate_data['dataset_name']}</th>
+            """
+        metrics_html += """
+                    </tr>
+                </thead>
+                <tbody>
+                    <tr>
+                        <td>Median hexagon quality</td>
+        """
+        for replicate_data in replicates_data:
+            metrics_html += f"""
+                        <td>{replicate_data['metrics_table_data'].get('Median hexagon quality', 'N/A')}</td>
+            """
+        metrics_html += """
+                    </tr>
+                    <tr>
+                        <td>Quality Morans I</td>
+        """
+        for replicate_data in replicates_data:
+            metrics_html += f"""
+                        <td>{replicate_data['metrics_table_data'].get('Quality Morans I', 'N/A')}</td>
+            """
+        metrics_html += """
+                    </tr>
+                    <tr>
+                        <td>Pct hexagons with quality below 20</td>
+        """
+        for replicate_data in replicates_data:
+            metrics_html += f"""
+                        <td>{replicate_data['metrics_table_data'].get('Pct hexagons with quality below 20', 'N/A')}</td>
+            """
+        metrics_html += """
+                    </tr>
+        """
+        if quality_per_probe:
+            metrics_html += """
+                    <tr>
+                        <td>Pct non-ctrl probes with quality below 20</td>
+            """
+            for replicate_data in replicates_data:
+                metrics_html += f"""
+                        <td>{replicate_data['metrics_table_data'].get('Pct non-ctrl probes with quality below 20', 'N/A')}</td>
+                """
+            metrics_html += """
+                    </tr>
+            """
+        metrics_html += """
+                </tbody>
+            </table>
+        """
+
+    metrics_html += """
         </div>
     """
 
@@ -359,7 +632,7 @@ def generate_dashboard_html(replicates_data, gene_names, include_morans_i,qualit
                 <div class="row">
                 """
             cell_density_df= replicate_data["cell_density_df"]
-            hexagon_html = hexagon_plot_to_html(cell_density_df, replicate_data['hexagon_size'], replicate_data['image_pixels_per_um'], "Density", replicate_data['dataset_name'],replicate_data['metrics_table_data']["Density Morans I"])
+            hexagon_html = hexagon_plot_to_html(cell_density_df, replicate_data['hexagon_size'], replicate_data['image_pixels_per_um'], "Density", replicate_data['dataset_name'],replicate_data['metrics_table_data']["Density (cells per hexagon) Morans I"])
             cell_density_hexagon_plots_html += f"""
             <div class="col">
                 <h3>{replicate_data['dataset_name']}</h3>
@@ -530,14 +803,16 @@ def generate_dashboard_html(replicates_data, gene_names, include_morans_i,qualit
             table {{
                 border-collapse: collapse;
                 width: 100%;
+                font-size: 12px;
             }}
             th, td {{
-                padding: 8px;
+                padding: 6px;
                 text-align: left;
                 border-bottom: 1px solid #ddd;
             }}
             th {{
                 background-color: #f2f2f2;
+                white-space: nowrap;
             }}
             .row {{
                 display: flex;
@@ -563,18 +838,18 @@ def generate_dashboard_html(replicates_data, gene_names, include_morans_i,qualit
                 <label for="metrics-select">Select Metric:</label>
                 <select id="metrics-select">
                     <option value="table">Table of Key Metrics</option>
-                    <option value="plot">Hexagon Plots</option>
-                    <option value="sums-comparison">Sums Comparison</option>
                     <option value="abundance-correlation-heatmap">Abundance Correlation Heatmap</option>
-                    {'<option value="morans-i-heatmap">Morans I Heatmap</option>' if include_morans_i else ""}
+                    <option value="sums-comparison">Abundance Comparison</option>
+                    <option value="sums-i-stripplot">Abundance Stripplot</option>
+                    {'<option value="morans-i-heatmap">Morans I Correlation Heatmap</option>' if include_morans_i else ""}
+                    {'<option value="morans-i-comparison">Morans I Comparison</option>' if include_morans_i else ""}
                     {'<option value="morans-i-stripplot">Morans I Stripplot</option>' if include_morans_i else ""}
-                    <option value="sums-i-stripplot">Sums I Stripplot</option>
-                    <option value="nfeature_hexagon_plots">nFeature hexagon plots</option>
-                    {'<option value="quality_hexagon_plots">Quality hexagon plots</option>' if quality_per_hexagon else ""}
-                    <option value="total_hexagon_plots">Total hexagon plots</option>
-                    {'<option value="morans-i-comparison">Pairwise Morans I Plots</option>' if include_morans_i else ""}
-                    {'<option value="probe_quality_stripplot">Probe Quality Stripplot</option>' if quality_per_probe else ""}
+                    <option value="plot">Hexagon Plots for Genes of Interest</option>
+                    <option value="nfeature_hexagon_plots">Number of Features per Hexagon Plots</option>
+                    <option value="total_hexagon_plots">Total Hexagon Plots</option>
                     {'<option value="cell_density_hexagon_plots">Cell Density Hexagon Plots</option>' if cell_info else ""}
+                    {'<option value="quality_hexagon_plots">Quality Hexagon Plots</option>' if quality_per_hexagon else ""}
+                    {'<option value="probe_quality_stripplot">Probe Quality Stripplot</option>' if quality_per_probe else ""}
                 </select>
             </div>
             <div id="metric-details-container">
@@ -693,8 +968,8 @@ def generate_dashboard_html(replicates_data, gene_names, include_morans_i,qualit
 def not_working_probe_based_on_sum(matrix_joined,sample_id="Sample1"):
     grouped_matrix = matrix_joined.groupby("Gene_ID_y")["Counts"].sum()
     #where index has control|blank|Control|Blank|BLANK in it
-    grouped_matrix_neg_probes = grouped_matrix[grouped_matrix.index.str.contains("control|blank|Control|Blank|BLANK")]
-    grouped_matrix_true_probes = grouped_matrix[~grouped_matrix.index.str.contains("control|blank|Control|Blank|BLANK")]     
+    grouped_matrix_neg_probes = grouped_matrix[grouped_matrix.index.str.contains("control|ctrl|pos|neg|Ctrl|blank|Control|Blank|BLANK")]
+    grouped_matrix_true_probes = grouped_matrix[~grouped_matrix.index.str.contains("control|ctrl|pos|neg|Ctrl|blank|Control|Blank|BLANK")]     
 
     #create a plot_df that is grouped_matrix and a column specifying whether the gene is a neg control or not
     plot_df = pd.DataFrame(grouped_matrix)
@@ -722,11 +997,7 @@ def not_working_probe_based_on_sum(matrix_joined,sample_id="Sample1"):
 
 
 
-import numpy as np
-import matplotlib.pyplot as plt
-from adjustText import adjust_text
-from io import BytesIO
-import base64
+
 
 
 def probe_stripplot(plot_df, col_to_plot="log_counts", sample_id="Sample 1", legend=False):
@@ -748,7 +1019,7 @@ def probe_stripplot(plot_df, col_to_plot="log_counts", sample_id="Sample 1", leg
         points["index"].append(index)
 
     # Plot the points for each category
-    for cat in ["Neg_control", "Good", "Bad"]:
+    for cat in [ "Good", "Bad","Neg_control"]:
         mask = [c == cat for c in points["cat"]]
         ax.scatter([x for x, m in zip(points["x"], mask) if m],
                    [y for y, m in zip(points["y"], mask) if m],
@@ -791,8 +1062,8 @@ def probe_stripplot(plot_df, col_to_plot="log_counts", sample_id="Sample 1", leg
     return html_fig
 
 def not_working_probe_based_on_quality(probe_quality, sample_id="Sample1"):
-    probe_quality_neg_probes = probe_quality[probe_quality["Probe_ID"].str.contains("control|blank|Control|Blank|BLANK")]
-    probe_quality_true_probes = probe_quality[~probe_quality["Probe_ID"].str.contains("control|blank|Control|Blank|BLANK")]
+    probe_quality_neg_probes = probe_quality[probe_quality["Probe_ID"].str.contains("control|ctrl|pos|neg|Ctrl|blank|Control|Blank|BLANK")]
+    probe_quality_true_probes = probe_quality[~probe_quality["Probe_ID"].str.contains("control|ctrl|pos|neg|Ctrl|blank|Control|Blank|BLANK")]
     plot_df = probe_quality.reset_index(drop=True)
     plot_df["Probe category"] = [1 if gene in probe_quality_neg_probes.Probe_ID.values else 0 for gene in plot_df.Probe_ID.values]
 
@@ -817,26 +1088,29 @@ def not_working_probe_based_on_quality(probe_quality, sample_id="Sample1"):
 
 
 def not_working_probe_based_on_morans_i(morans_table, sample_id="Sample1"):
-    morans_table_neg_probes = morans_table[morans_table.gene.str.contains("control|blank|Control|Blank|BLANK")]
-    morans_table_true_probes = morans_table[~morans_table.gene.str.contains("control|blank|Control|Blank|BLANK")]     
+    
+    morans_table_neg_probes = morans_table[morans_table.gene.str.contains("control|ctrl|pos|neg|Ctrl|blank|Control|Blank|BLANK")]
+    morans_table_true_probes = morans_table[~morans_table.gene.str.contains("control|ctrl|pos|neg|Ctrl|blank|Control|Blank|BLANK")]     
 
     #create a plot_df that is grouped_matrix and a column specifying whether the gene is a neg control or not
     plot_df = morans_table.reset_index(drop=True)
     plot_df["Probe category"] = [1 if gene in morans_table_neg_probes.gene.values else 0 for gene in plot_df.gene.values]
 
+    neg_probes_morans_i_s = plot_df[plot_df["Probe category"]==1]["Morans_I"]
+    mean = np.mean(neg_probes_morans_i_s)
+    std = np.std(neg_probes_morans_i_s)
+
     #iterate through the true probes and see whether they are significantly outside of the distribution of the neg probes
     for gene in morans_table_true_probes.gene.values:
         plot_df_gene_index = plot_df[plot_df["gene"]==gene].index[0]
         morans_i_s = plot_df[plot_df["gene"]==gene]["Morans_I"]
-        neg_probes_morans_i_s = plot_df[plot_df["Probe category"]==1]["Morans_I"]
-        mean = np.mean(neg_probes_morans_i_s)
-        std = np.std(neg_probes_morans_i_s)
         p_val = stats.norm.cdf(morans_i_s, loc=mean, scale=std)
         p_val = 1-p_val
         if p_val*len(morans_table_true_probes)<0.05:
             plot_df.loc[plot_df_gene_index,"Probe category"] = 2
+    
     #save the name of those genes with 0
-    plot_df["Probe category"] = ["Neg_control" if x==1 else "Bad" if x==0 else "Good" for x in plot_df["Probe category"]]
+    plot_df["Probe category"] = ["Neg_control" if x==1 else "Good" if x==2 else "Bad" for x in plot_df["Probe category"]]
     plot_df["Sample"] = sample_id
     plot_df = plot_df.sort_values("Probe category")
     return plot_df
@@ -861,13 +1135,6 @@ def get_quality_per_hexagon(matrix_joined):
     hexagon_quality = hexagon_quality.rename(columns={"Quality": "counts"})
     return hexagon_quality
 
-
-from shapely.geometry import Point
-import geopandas as gpd
-from libpysal import weights
-from esda import Moran
-import numpy as np
-import pandas as pd
 
 # Functions used in generate_qc_report
 def get_df_for_gene(matrix_joined, tissue_positions_list, gene_name, normalised=False):
@@ -896,6 +1163,7 @@ def hexagon_plot_to_html(hexagon_df, hexagon_size, image_pixels_per_um, gene_nam
     fig, ax = plt.subplots(figsize=(3, 2.5))
     sc = ax.scatter(hexagon_df["x"], hexagon_df["y"], c=hexagon_df["counts"], cmap="viridis", s=2, alpha=0.6)
     for hx, hy in zip(hexagon_df["x"], hexagon_df["y"]):
+        #Double check this and why there is the 0.865 division
         hexagon = RegularPolygon((hx, hy), numVertices=6, radius=hexagon_size * image_pixels_per_um / 0.865, alpha=0.2, edgecolor='k', orientation=np.pi / 2)
         ax.add_patch(hexagon)
     ax.set_xlim(0, max(hexagon_df["x"]))
@@ -965,14 +1233,14 @@ def plot_sums_to_html(sums1, sums2, dataset1_name, dataset2_name):
         ax.set_xlabel(f"Log10 Total expression {dataset1_name}", fontsize=8)
         ax.set_ylabel(f"Log10 Total expression {dataset2_name}", fontsize=8)
         ax.set_title(f"{dataset1_name} vs {dataset2_name}", fontsize=10)
-        corr = sums_df["Counts_1"].corr(sums_df["Counts_2"])
-        ax.text(np.quantile(sums_df["Counts_1"], 0.3), np.quantile(sums_df["Counts_2"], 0.95),
-                f"Pearson correlation: {corr:.2f}", fontsize=8)
 
         sums_df["diff"] = np.abs(sums_df["Counts_1"] - sums_df["Counts_2"])
         sums_df = sums_df.sort_values("diff", ascending=False)
 
-        texts = []
+        corr = sums_df["Counts_1"].corr(sums_df["Counts_2"])
+        corr_text = ax.text(np.quantile(sums_df["Counts_1"], 0.3), np.quantile(sums_df["Counts_2"], 0.95),
+                            f"Pearson correlation: {corr:.2f}", fontsize=8)
+        texts = [corr_text]
         for i in range(10):
             x = sums_df["Counts_1"].iloc[i]
             y = sums_df["Counts_2"].iloc[i]
@@ -1008,24 +1276,24 @@ def plot_abundance_correlation_heatmap(replicates_data):
         for j in range(i + 1, len(sums_data)):
             common_probes = list(set(sums_data[i]["Gene_ID_y"]) & set(sums_data[j]["Gene_ID_y"]))
             if len(common_probes) >= min_common_probes:
-                #filter dataframes only for common probes then reorder them to have the same order
-                sums_data[i] = sums_data[i][sums_data[i]["Gene_ID_y"].isin(common_probes)]
-                sums_data[j] = sums_data[j][sums_data[j]["Gene_ID_y"].isin(common_probes)]
-                sums_data[i].sort_values("Gene_ID_y", inplace=True)
-                sums_data[j].sort_values("Gene_ID_y", inplace=True)
-                corr = sums_data[i]["Counts"].corr(sums_data[j]["Counts"])
-                corr=round(corr,3)
+                # Filter dataframes only for common probes then reorder them to have the same order
+                sums1 = sums_data[i][sums_data[i]["Gene_ID_y"].isin(common_probes)]
+                sums2 = sums_data[j][sums_data[j]["Gene_ID_y"].isin(common_probes)]
+                sums1 = sums1.sort_values("Gene_ID_y")
+                sums2 = sums2.sort_values("Gene_ID_y")
+                sums_df = pd.merge(sums1, sums2, on="Gene_ID_y", suffixes=("_1", "_2"))
+                corr = sums_df["Counts_1"].corr(sums_df["Counts_2"])
+                corr = round(corr, 3)
                 corr_matrix.iloc[i, j] = corr
                 corr_matrix.iloc[j, i] = corr
             else:
                 corr_matrix.iloc[i, j] = 0.0
                 corr_matrix.iloc[j, i] = 0.0
             
-    #make diagonal 1
+    # Make diagonal 1
     np.fill_diagonal(corr_matrix.values, 1)
     
     fig_dimension = len(replicates_data)
-
     clustermap = sns.clustermap(corr_matrix, cmap='coolwarm', annot=True, fmt='.2f', figsize=(fig_dimension, fig_dimension))
 
     # Convert the plot to HTML
@@ -1063,7 +1331,7 @@ def process_gene(gene, matrix_joined, tissue_positions_list):
     gene_df = get_df_for_gene(matrix_joined, tissue_positions_list, gene, normalised=True)
     points = [Point(xy) for xy in zip(gene_df['x'], gene_df['y'])]
     gene_gdf = gpd.GeoDataFrame(gene_df, geometry=points)
-    w = weights.KNN.from_dataframe(gene_gdf, k=6)
+    w = weights.KNN.from_dataframe(gene_gdf, k=18)
     w.transform = 'R'
     mi = Moran(gene_df["counts"], w, permutations=0)
     return {"gene": gene, "Morans_I": mi.I}
@@ -1072,15 +1340,15 @@ def get_morans_i(gene_name, matrix_joined, tissue_positions_list, max_workers=4)
     if gene_name == "all":
         unique_genes = matrix_joined["Gene_ID_y"].unique()
         #remove those unique genes which have less than total 100 counts
-        lowly_expressed_genes = matrix_joined.groupby("Gene_ID_y")["Counts"].sum()
-        lowly_expressed_genes = lowly_expressed_genes[lowly_expressed_genes<100].index.values
-        unique_genes = [gene for gene in unique_genes if gene not in lowly_expressed_genes]
+        #lowly_expressed_genes = matrix_joined.groupby("Gene_ID_y")["Counts"].sum()
+        #lowly_expressed_genes = lowly_expressed_genes[lowly_expressed_genes<100].index.values
+        unique_genes = [gene for gene in unique_genes] #if gene not in lowly_expressed_genes]
         with ProcessPoolExecutor(max_workers=max_workers) as executor:
             results = list(tqdm(executor.map(process_gene, unique_genes, [matrix_joined]*len(unique_genes), [tissue_positions_list]*len(unique_genes)), total=len(unique_genes), desc="Processing genes"))
         
         res_df = pd.DataFrame(results)
         #append the lowly expressed genes to the end of the dataframe with a morans i of 0
-        res_df = pd.concat([res_df,pd.DataFrame({"gene":lowly_expressed_genes,"Morans_I":0})],axis=0)
+        #res_df = pd.concat([res_df,pd.DataFrame({"gene":lowly_expressed_genes,"Morans_I":0})],axis=0)
         
         return res_df
     
@@ -1090,7 +1358,7 @@ def get_morans_i(gene_name, matrix_joined, tissue_positions_list, max_workers=4)
         mat["y"] = mat.index.to_series().apply(lambda barcode: matrix_joined[matrix_joined["Barcode_ID"]==barcode]["y"].values[0])
         points = [Point(xy) for xy in zip(mat['x'], mat['y'])]
         gene_gdf = gpd.GeoDataFrame(mat, geometry=points)
-        w = weights.KNN.from_dataframe(gene_gdf, k=6)
+        w = weights.KNN.from_dataframe(gene_gdf, k=18)
         w.transform = 'R'
         mi = esda.Moran(mat["Gene_ID_y"], w, permutations=0)
         return mi.I
@@ -1099,7 +1367,7 @@ def get_morans_i(gene_name, matrix_joined, tissue_positions_list, max_workers=4)
         mat = matrix_joined.copy()
         points = [Point(xy) for xy in zip(mat['x'], mat['y'])]
         gene_gdf = gpd.GeoDataFrame(mat, geometry=points)
-        w = weights.KNN.from_dataframe(gene_gdf, k=6)
+        w = weights.KNN.from_dataframe(gene_gdf, k=18)
         w.transform = 'R'
         mi = esda.Moran(mat["counts"], w, permutations=0)
         return mi.I
@@ -1110,7 +1378,7 @@ def get_morans_i(gene_name, matrix_joined, tissue_positions_list, max_workers=4)
         mat["y"] = mat.index.to_series().apply(lambda barcode: matrix_joined[matrix_joined["Barcode_ID"]==barcode]["y"].values[0])
         points = [Point(xy) for xy in zip(mat['x'], mat['y'])]
         gene_gdf = gpd.GeoDataFrame(mat, geometry=points)
-        w = weights.KNN.from_dataframe(gene_gdf, k=6)
+        w = weights.KNN.from_dataframe(gene_gdf, k=18)
         w.transform = 'R'
         mi = esda.Moran(mat["Counts"], w, permutations=0)
         return mi.I
@@ -1121,7 +1389,7 @@ def get_morans_i(gene_name, matrix_joined, tissue_positions_list, max_workers=4)
         mat["y"] = mat.index.to_series().apply(lambda barcode: matrix_joined[matrix_joined["Barcode_ID"]==barcode]["y"].values[0])
         points = [Point(xy) for xy in zip(mat['x'], mat['y'])]
         gene_gdf = gpd.GeoDataFrame(mat, geometry=points)
-        w = weights.KNN.from_dataframe(gene_gdf, k=6)
+        w = weights.KNN.from_dataframe(gene_gdf, k=18)
         w.transform = 'R'
         mi = esda.Moran(mat["Quality"], w, permutations=0)
         return mi.I
@@ -1130,7 +1398,7 @@ def get_morans_i(gene_name, matrix_joined, tissue_positions_list, max_workers=4)
         gene_df = get_df_for_gene(matrix_joined, tissue_positions_list, gene_name, normalised=True)
         points = [Point(xy) for xy in zip(gene_df['x'], gene_df['y'])]
         gene_gdf = gpd.GeoDataFrame(gene_df, geometry=points)
-        w = weights.KNN.from_dataframe(gene_gdf, k=6)
+        w = weights.KNN.from_dataframe(gene_gdf, k=18)
         w.transform = 'R'
         mi = esda.Moran(gene_df["counts"], w, permutations=0)
         return mi.I
@@ -1139,8 +1407,7 @@ def get_morans_i(gene_name, matrix_joined, tissue_positions_list, max_workers=4)
 
 def plot_morans_i_to_html(morans_i1, morans_i2, dataset1_name, dataset2_name):
     common_probes = list(set(morans_i1["gene"]) & set(morans_i2["gene"]))
-    #print length of common_probes "in scatter plot"
-    print("In scatterplot, number of common probes: ",len(common_probes))
+    print("In scatterplot, number of common probes: ", len(common_probes))
     if len(common_probes) < 20:
         fig, ax = plt.subplots(figsize=(4, 4))
         ax.text(0.5, 0.5, "Not enough overlapping probes", fontsize=12, ha='center')
@@ -1151,7 +1418,7 @@ def plot_morans_i_to_html(morans_i1, morans_i2, dataset1_name, dataset2_name):
         fig.savefig(img_buffer, format='png')
         img_str = base64.b64encode(img_buffer.getvalue()).decode()
         html_fig = f'<img src="data:image/png;base64,{img_str}"/>'
-        
+
         plt.close(fig)  # Close the plot to free memory
 
         return html_fig
@@ -1163,12 +1430,21 @@ def plot_morans_i_to_html(morans_i1, morans_i2, dataset1_name, dataset2_name):
         ax.set_xlabel(f"Moran's I {dataset1_name}", fontsize=8)
         ax.set_ylabel(f"Moran's I {dataset2_name}", fontsize=8)
         ax.set_title(f"{dataset1_name} vs {dataset2_name}", fontsize=10)
-        corr = morans_i_df["Morans_I_1"].corr(morans_i_df["Morans_I_2"])
-        ax.text(0.5, 0.1, f"Pearson correlation: {corr:.2f}", fontsize=8, ha='center')
+
         morans_i_df["diff"] = np.abs(morans_i_df["Morans_I_1"] - morans_i_df["Morans_I_2"])
         morans_i_df = morans_i_df.sort_values("diff", ascending=False)
+
+        corr = morans_i_df["Morans_I_1"].corr(morans_i_df["Morans_I_2"])
+        corr_text = ax.text(0.5, 0.1, f"Pearson correlation: {corr:.2f}", fontsize=8, ha='center')
+
+        texts = [corr_text]
         for i in range(10):
-            ax.text(morans_i_df["Morans_I_1"].iloc[i], morans_i_df["Morans_I_2"].iloc[i], morans_i_df["gene"].iloc[i], fontsize=10)
+            x = morans_i_df["Morans_I_1"].iloc[i]
+            y = morans_i_df["Morans_I_2"].iloc[i]
+            txt = morans_i_df["gene"].iloc[i]
+            texts.append(ax.text(x, y, txt, fontsize=10))
+
+        adjust_text(texts, arrowprops=dict(arrowstyle="-", color='black', lw=0.5))
 
         # Convert the plot to HTML
         img_buffer = BytesIO()

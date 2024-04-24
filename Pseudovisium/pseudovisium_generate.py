@@ -6,33 +6,21 @@ import pandas as pd
 import cv2
 import json
 import gzip
-import csv
 import concurrent.futures
 import os
 import shutil
 import tempfile
 from tqdm import tqdm
 import itertools
-import psutil
 import argparse
 import tifffile
-import imagecodecs
 import multiprocessing
 import time
 import scanpy as sc
-from scipy.sparse import csr_matrix
-import concurrent.futures
-import itertools
-import csv
-import multiprocessing
-from tqdm import tqdm
-from scipy.io import mmwrite
-
-
-##Changes
-#Save Fov information if provided
-#Save quality score information if provided
-
+import scipy.io
+import h5py
+import scipy.sparse
+from pathlib import Path
 
 def closest_hex(x,y,hexagon_size):
     """
@@ -336,8 +324,7 @@ def process_batch(batch_file, hexagon_size, feature_colname, x_colname, y_colnam
 
 
 
-from concurrent.futures import ThreadPoolExecutor
-from tqdm import tqdm
+
 def process_batch_hexagons(batch,hexagon_counts,hexagon_names,features):
         batch_matrix_data = []
         for hexagon in batch:
@@ -350,10 +337,6 @@ def process_batch_hexagons(batch,hexagon_counts,hexagon_names,features):
         return batch_matrix_data
 
 
-import h5py
-import numpy as np
-from scipy.sparse import csr_matrix
-from pathlib import Path
 def write_10X_h5(adata, file):
     """Writes adata to a 10X-formatted h5 file.
     
@@ -575,8 +558,6 @@ def process_csv_file(csv_file, hexagon_size, field_size, batch_size=1000000, tec
 
     return hexagon_counts, hexagons, hexagon_cell_counts, hexagon_quality, probe_quality
 
-from concurrent.futures import ThreadPoolExecutor
-from tqdm import tqdm
 
 def hex_to_rows(hexagon_batch, hexagon_indices, features, hexagon_counts):
     """
@@ -760,7 +741,7 @@ def create_pseudovisium(path,hexagon_counts,hexagon_cell_counts,hexagon_quality,
         hexagon_batches.append(hexagon_names[-n_leftover:])
         index_batches.append(hexagon_indices[-n_leftover:])
 
-    with ThreadPoolExecutor(max_workers=max_workers) as executor:
+    with concurrent.futures.ThreadPoolExecutor(max_workers=max_workers) as executor:
         futures = []
         for hexagon_batch, index_batch in zip(hexagon_batches, index_batches):
             future = executor.submit(hex_to_rows, hexagon_batch, index_batch, features, hexagon_counts)
@@ -776,11 +757,11 @@ def create_pseudovisium(path,hexagon_counts,hexagon_cell_counts,hexagon_quality,
     row_indices = np.array(matrix_data)[:, 0] - 1
     col_indices = np.array(matrix_data)[:, 1] - 1
 
-    sparse_matrix = csr_matrix((data, (row_indices, col_indices)), shape=(len(features), len(barcodes)))
+    sparse_matrix = scipy.sparse.csr_matrix((data, (row_indices, col_indices)), shape=(len(features), len(barcodes)))
 
     print("Creating matrix.mtx.gz file in spatial folder.")
     with open(folderpath + '/matrix.mtx', 'wb') as f:
-        mmwrite(f, sparse_matrix, comment='metadata_json: {"software_version": "Pseudovisium", "format_version": 1}\n')
+        scipy.io.mmwrite(f, sparse_matrix, comment='metadata_json: {"software_version": "Pseudovisium", "format_version": 1}\n')
 
     with open(folderpath +'/matrix.mtx', 'rb') as f_in, gzip.open(folderpath + '/matrix.mtx.gz', 'wb') as f_out:
         f_out.writelines(f_in)
@@ -793,7 +774,7 @@ def create_pseudovisium(path,hexagon_counts,hexagon_cell_counts,hexagon_quality,
     data = np.array(matrix_data)[:, 2]
     row_indices = np.array(matrix_data)[:, 1] - 1  # Use hexagon indices for rows
     col_indices = np.array(matrix_data)[:, 0] - 1  # Use feature indices for columns
-    sparse_matrix = csr_matrix((data, (row_indices, col_indices)), shape=(len(barcodes), len(features)))
+    sparse_matrix = scipy.sparse.csr_matrix((data, (row_indices, col_indices)), shape=(len(barcodes), len(features)))
 
     # Create AnnData object from sparse matrix and barcodes/features
     adata = sc.AnnData(X=sparse_matrix, obs=pd.DataFrame(index=barcodes), var=pd.DataFrame(index=features))
@@ -938,7 +919,7 @@ def anndata_to_df(adata, technology,tissue_pos=None,scalefactors=None,x_col=None
         #tissue_pos keep barcode, pxl_row_in_fullres, pxl_col_in_fullres
         tissue_pos = tissue_pos[["barcode","pxl_row_in_fullres","pxl_col_in_fullres"]]
         # Convert the AnnData matrix to a sparse matrix (CSR format)
-        X = csr_matrix(adata.X)
+        X = scipy.sparse.csr_matrix(adata.X)
 
         # Get the row and column indices of non-zero elements
         row_indices, col_indices = X.nonzero()
@@ -973,7 +954,7 @@ def anndata_to_df(adata, technology,tissue_pos=None,scalefactors=None,x_col=None
         scale = np.round(min([abs(x1 - x2) for x1 in obs["y"] for x2 in [obs["y"][500]] if x1!=x2]),3) #should be 10um
         
         obs["barcode"] = obs.index
-        X = csr_matrix(adata.X)
+        X = scipy.sparse.csr_matrix(adata.X)
 
         # Get the row and column indices of non-zero elements
         row_indices, col_indices = X.nonzero()
