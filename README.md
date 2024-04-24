@@ -1,5 +1,5 @@
 # 🛑 Pseudovisium
-Pseudovisium is a powerful Python software package designed to democratize the analysis of imaging-based spatial transcriptomics data. By leveraging hexagonal binning, Pseudovisium enables efficient compression and visualization of spatial data, making it exploratory analysis and quality control faster and more memory efficient. The goal of this tool is not to increase accuracy, but to make spatial data analysis more accessible, regardless of computing environment.
+Pseudovisium is a Python software package designed to democratize the analysis of spatial transcriptomics data. By leveraging hexagonal binning, Pseudovisium enables efficient compression and visualization of spatial data, making exploratory analysis and quality control faster and more memory efficient. The goal of this tool is not to increase accuracy, but to make spatial data analysis more accessible, regardless of computing environment.
 
 ## 🚀 Key Features
 ### 1. generate_pv:   Data Compression 📊
