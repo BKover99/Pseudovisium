@@ -209,7 +209,6 @@ def process_batch(batch_file, hexagon_size, feature_colname, x_colname, y_colnam
 
     """
     
-    
     hexagon_counts = {}
     if cell_id_colname != "None":
         hexagon_cell_counts = {}
@@ -421,7 +420,6 @@ def process_csv_file(csv_file, hexagon_size, field_size, batch_size=1000000, tec
 
 
 
-
     hexagons = initialize_hexagons(hexagon_size, field_size)
     hexagon_counts = {hexagon: defaultdict(int) for hexagon in hexagons}
     hexagon_cell_counts = {hexagon: defaultdict(int) for hexagon in hexagons}
@@ -494,7 +492,7 @@ def process_csv_file(csv_file, hexagon_size, field_size, batch_size=1000000, tec
 
     tmp_dir, num_batches = preprocess_csv(csv_file, batch_size, fieldnames)
     batch_files = [os.path.join(tmp_dir, f"batch_{i}.csv") for i in range(num_batches)]
-    with concurrent.futures.ProcessPoolExecutor(max_workers=min(max_workers, multiprocessing.cpu_count())) as executor:
+    with concurrent.futures.ThreadPoolExecutor(max_workers=min(max_workers, multiprocessing.cpu_count())) as executor:
         futures = [executor.submit(process_batch, batch_file, hexagon_size, feature_colname, x_colname, y_colname, cell_id_colname, quality_colname, quality_filter, count_colname,smoothing,quality_per_hexagon,quality_per_probe) for batch_file in batch_files]
         
         with tqdm(total=len(batch_files), desc="Processing batches", unit="batch") as progress_bar:
@@ -559,29 +557,21 @@ def process_csv_file(csv_file, hexagon_size, field_size, batch_size=1000000, tec
     return hexagon_counts, hexagons, hexagon_cell_counts, hexagon_quality, probe_quality
 
 
-def hex_to_rows(hexagon_batch, hexagon_indices, features, hexagon_counts):
-    """
-    hex_to_rows(hexagon_batch, hexagon_indices, features, hexagon_counts)
-    Converts a batch of hexagons to matrix rows.
-
-    Args:
-        hexagon_batch (list): A list of hexagon coordinates.
-        hexagon_indices (list): A list of hexagon indices.
-        features (list): A list of feature names.
-        hexagon_counts (dict): A dictionary of hexagon counts.
-
-    Returns:
-        list: A list of matrix rows, where each row contains the feature index, hexagon index, and count.
-    """
-    def process_hexagon(hexagon, hexagon_index):
+def process_hexagon(hexagon, hexagon_index, features, hexagon_counts):
         return [[features.index(feature) + 1, hexagon_index + 1, count]
                 for feature, count in hexagon_counts[hexagon].items()]
 
-    matrix_data = [item for hexagon, hexagon_index in zip(hexagon_batch, hexagon_indices)
-                   for item in process_hexagon(hexagon, hexagon_index)]
+def hex_to_rows(hexagon_batch, start_index, features, hexagon_counts):
+    matrix_data = []
+    for hexagon_index, hexagon in enumerate(hexagon_batch, start=start_index):
+        count_dict = hexagon_counts.get(hexagon, {})
+        for feature, count in count_dict.items():
+            feature_index = features.index(feature)
+            matrix_data.append([feature_index + 1, hexagon_index + 1, count])
+    print(f"Batch total count: {sum(row[2] for row in matrix_data)}")
     return matrix_data
 
-def create_pseudovisium(path,hexagon_counts,hexagon_cell_counts,hexagon_quality, probe_quality,
+def create_pseudovisium(path,hexagon_counts,hexagons,hexagon_cell_counts,hexagon_quality, probe_quality,
                         img_file_path=None,  project_name="project",
                          alignment_matrix_file=None,image_pixels_per_um=1/0.2125,hexagon_size=100,tissue_hires_scalef=0.2,
                          pixel_to_micron=False,max_workers=min(2, multiprocessing.cpu_count())):
@@ -668,7 +658,7 @@ def create_pseudovisium(path,hexagon_counts,hexagon_cell_counts,hexagon_quality,
 
  ############################################## ##############################################
     #if hexagon_cell_counts is empty, then skip
-    if hexagon_cell_counts == {}:
+    if hexagon_cell_counts == {hexagon: defaultdict(int) for hexagon in hexagons}:
         print("No cell information provided. Skipping cell information files.")
     else:
         print("Creating pv_cell_hex.csv file in spatial folder.")
@@ -681,7 +671,7 @@ def create_pseudovisium(path,hexagon_counts,hexagon_cell_counts,hexagon_quality,
                         writer.writerow([cell, hexagon_index + 1, count])
 
  ############################################## ##############################################
-    if hexagon_quality == {}:
+    if hexagon_quality == {hexagon: defaultdict(int) for hexagon in hexagons}:
         print("No quality information provided. Skipping quality information files.")
     else:
         print("Creating quality_per_hexagon.csv file in spatial folder.")
@@ -706,9 +696,8 @@ def create_pseudovisium(path,hexagon_counts,hexagon_cell_counts,hexagon_quality,
 
  ############################################## ##############################################
 
-    #get all unique feature_names
-    features = list(set(feature for hexagon_counts in hexagon_counts.values() for feature in hexagon_counts))
-
+    
+    features = list(set(feature for hexagon_counts in hexagon_counts.values() for feature in hexagon_counts)) 
     # Create a list of rows with repeated features and 'Gene Expression' column
     rows = [[feature, feature, 'Gene Expression'] for feature in features]
 
@@ -725,32 +714,36 @@ def create_pseudovisium(path,hexagon_counts,hexagon_cell_counts,hexagon_quality,
  ############################################## ##############################################
     
 
+    # Assuming hexagon_counts is your dictionary
+    ordered_hexagon_counts = dict(sorted(hexagon_counts.items()))
+
     print("Putting together the matrix.mtx file")
     matrix_data = []
     batch_size_n_hexagons = 500
-    hexagon_names = list(hexagon_counts.keys())  # Convert hexagon_names to a list
-    hexagon_indices = list(range(len(hexagon_names)))  # Create an array of hexagon indices
-    n_total_hexagons = len(hexagon_names)
-    n_batches = n_total_hexagons // batch_size_n_hexagons
-    n_leftover = n_total_hexagons % batch_size_n_hexagons
+    n_total_hexagons = len(ordered_hexagon_counts)
+    print(f"Processing {n_total_hexagons} hexagons in batches of {batch_size_n_hexagons} hexagons")
 
-    # Create batches of hexagon names and indices
-    hexagon_batches = [hexagon_names[i*batch_size_n_hexagons:(i+1)*batch_size_n_hexagons] for i in range(n_batches)]
-    index_batches = [hexagon_indices[i*batch_size_n_hexagons:(i+1)*batch_size_n_hexagons] for i in range(n_batches)]
-    if n_leftover > 0:
-        hexagon_batches.append(hexagon_names[-n_leftover:])
-        index_batches.append(hexagon_indices[-n_leftover:])
-
-    with concurrent.futures.ThreadPoolExecutor(max_workers=max_workers) as executor:
+    total_count = 0
+    with concurrent.futures.ProcessPoolExecutor(max_workers=max_workers) as executor:
         futures = []
-        for hexagon_batch, index_batch in zip(hexagon_batches, index_batches):
-            future = executor.submit(hex_to_rows, hexagon_batch, index_batch, features, hexagon_counts)
+        hexagon_names = list(ordered_hexagon_counts.keys())
+        for i in range(0, n_total_hexagons, batch_size_n_hexagons):
+            hexagon_batch = hexagon_names[i:i + batch_size_n_hexagons]
+            future = executor.submit(hex_to_rows, hexagon_batch, i, features, ordered_hexagon_counts)
             futures.append(future)
 
-        with tqdm(total=len(hexagon_batches), desc="Processing batches") as pbar:
-            for future in futures:
-                matrix_data.extend(future.result())
+        with tqdm(total=len(futures), desc="Processing batches") as pbar:
+            for future in concurrent.futures.as_completed(futures):
+                batch_matrix_data = future.result()
+                matrix_data.extend(batch_matrix_data)
+                total_count += sum(row[2] for row in batch_matrix_data)
                 pbar.update(1)
+
+    print(f"Total matrix count: {total_count}")
+    unique_hexagons = len(set(hexagon_names))
+    print(f"Number of unique hexagons: {unique_hexagons}")
+    print(f"Number of hexagons in ordered_hexagon_counts: {len(ordered_hexagon_counts)}")
+
     
 
     data = np.array(matrix_data)[:, 2]
@@ -984,13 +977,13 @@ def visium_hd_curio_to_transcripts(folder,output,technology,x_col=None,y_col=Non
     """
 
     if technology == "Visium_HD":
-        scalefactors,tissue_pos,fb_matrix = read_files(folder)
-        df,image_resolution  = anndata_to_df(fb_matrix,tissue_pos,scalefactors)
+        scalefactors,tissue_pos,fb_matrix = read_files(folder,technology)
+        df,image_resolution  = anndata_to_df(adata=fb_matrix,technology=technology,tissue_pos=tissue_pos,scalefactors=scalefactors)
         df.to_csv(output,index=False)
         return image_resolution 
     elif technology == "Curio":
         adata = read_files(folder,technology)
-        df,scale = anndata_to_df(adata,technology,x_col=x_col,y_col=y_col)
+        df,scale = anndata_to_df(adata=adata,technology=technology,x_col=x_col,y_col=y_col)
         df.to_csv(output,index=False)
         return scale
 
@@ -1066,8 +1059,8 @@ def generate_pv(csv_file,img_file_path=None, hexagon_size=100, field_size_x=1000
                quality_per_hexagon=quality_per_hexagon,quality_per_probe=quality_per_probe,h5_x_colname=h5_x_colname,h5_y_colname=h5_y_colname)
         
     # Create Pseudovisium output
-    create_pseudovisium(path=output_path,hexagon_counts=hexagon_counts,hexagon_cell_counts=hexagon_cell_counts, probe_quality=probe_quality,
-                        img_file_path=img_file_path, hexagon_quality =hexagon_quality , 
+    create_pseudovisium(path=output_path,hexagon_counts=hexagon_counts, hexagons=hexagons, hexagon_cell_counts=hexagon_cell_counts, probe_quality=probe_quality,
+                        img_file_path=img_file_path, hexagon_quality =hexagon_quality,
                           project_name=project_name, alignment_matrix_file=alignment_matrix_file,
                           image_pixels_per_um=image_pixels_per_um,hexagon_size=hexagon_size,
                           tissue_hires_scalef=tissue_hires_scalef,pixel_to_micron=pixel_to_micron,max_workers=max_workers)

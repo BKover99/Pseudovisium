@@ -23,7 +23,7 @@ import base64
 
 
 
-def generate_qc_report(folders, output_folder="/Users/k23030440/", gene_names=["RYR3", "AQP4", "THBS1"], include_morans_i=False,max_workers=4):
+def generate_qc_report(folders, output_folder="/Users/k23030440/", gene_names=["RYR3", "AQP4", "THBS1"], include_morans_i=False,max_workers=4,normalisation=False):
     #if any entry in folders lacks final /, then add
     folders = [folder if folder[-1]=="/" else folder + "/" for folder in folders]
     #same with output_folder
@@ -225,7 +225,7 @@ def generate_qc_report(folders, output_folder="/Users/k23030440/", gene_names=["
 
         replicates_data.append(replicate_data)
 
-    html_code = generate_dashboard_html(replicates_data, gene_names, include_morans_i,quality_per_hexagon,quality_per_probe,cell_info)
+    html_code = generate_dashboard_html(replicates_data, gene_names, include_morans_i,quality_per_hexagon,quality_per_probe,cell_info,normalisation=normalisation)
 
     # Save HTML code to a file
     with open(output_folder + "metrics_dashboard.html", "w", encoding="utf-8") as html_file:
@@ -263,7 +263,7 @@ def generate_qc_report(folders, output_folder="/Users/k23030440/", gene_names=["
 
 
 
-def generate_dashboard_html(replicates_data, gene_names, include_morans_i,quality_per_hexagon,quality_per_probe,cell_info):
+def generate_dashboard_html(replicates_data, gene_names, include_morans_i,quality_per_hexagon,quality_per_probe,cell_info,normalisation=False):
     metrics_html = """
         <div id="metric-details">
             <h2>Counts Table</h2>
@@ -580,7 +580,7 @@ def generate_dashboard_html(replicates_data, gene_names, include_morans_i,qualit
         for replicate_data in replicates_data:
             if gene_name in replicate_data['features']['Gene_Name'].tolist():
                 gene_found = True
-                hexagon_df = get_df_for_gene(replicate_data['matrix_joined'], replicate_data['tissue_positions_list'], gene_name)
+                hexagon_df = get_df_for_gene(replicate_data['matrix_joined'], replicate_data['tissue_positions_list'], gene_name,normalisation)
                 hexagon_html = hexagon_plot_to_html(hexagon_df, replicate_data['hexagon_size'], replicate_data['image_pixels_per_um'], gene_name, replicate_data['dataset_name'])
                 hexagon_plots_html += f"""
                 <div class="col">
@@ -1407,7 +1407,6 @@ def get_morans_i(gene_name, matrix_joined, tissue_positions_list, max_workers=4)
 
 def plot_morans_i_to_html(morans_i1, morans_i2, dataset1_name, dataset2_name):
     common_probes = list(set(morans_i1["gene"]) & set(morans_i2["gene"]))
-    print("In scatterplot, number of common probes: ", len(common_probes))
     if len(common_probes) < 20:
         fig, ax = plt.subplots(figsize=(4, 4))
         ax.text(0.5, 0.5, "Not enough overlapping probes", fontsize=12, ha='center')
@@ -1471,7 +1470,6 @@ def plot_morans_i_correlation_heatmap(replicates_data):
     for i in range(len(morans_i_data)):
         for j in range(i + 1, len(morans_i_data)):
             common_probes = list(set(morans_i_data[i]["gene"]) & set(morans_i_data[j]["gene"]))
-            print("In heatmap, number of common probes: ",len(common_probes))
             if len(common_probes) >= min_common_probes:
                 #filter dataframes only for common probes then reorder them to have the same order
                 morans_i_df = pd.merge(morans_i_data[i], morans_i_data[j], on="gene", suffixes=("_1", "_2"))
@@ -1486,7 +1484,6 @@ def plot_morans_i_correlation_heatmap(replicates_data):
 
     #make diagonal 1
     np.fill_diagonal(corr_matrix.values, 1)
-    print(corr_matrix)
     fig_dimension = len(replicates_data) 
     clustermap = sns.clustermap(corr_matrix, cmap='coolwarm', annot=True, fmt='.2f', figsize=(fig_dimension, fig_dimension))
 
@@ -1508,9 +1505,11 @@ def main():
     parser.add_argument("--gene_names", "-g", nargs="+", default=["RYR3", "AQP4", "THBS1"], help="List of gene names to plot")
     parser.add_argument("--include_morans_i", "-m", action="store_true", help="Include Moran's I features tab")
     parser.add_argument("-max_workers", "--mw", type=int, default=4, help="Number of workers to use for parallel processing")
+    parser.add_argument("-normalisation","--n",action="store_true",help="Normalise the counts by the total counts per cell")
+
     args = parser.parse_args()
 
-    generate_qc_report(args.folders, args.output_folder, args.gene_names, args.include_morans_i, max_workers=args.mw)
+    generate_qc_report(args.folders, args.output_folder, args.gene_names, args.include_morans_i, max_workers=args.mw,normalisation=args.n)
 
 
 if __name__ == "__main__":
