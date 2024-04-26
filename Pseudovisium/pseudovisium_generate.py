@@ -1,5 +1,4 @@
 import csv
-from collections import defaultdict
 import numpy as np
 import math
 import pandas as pd
@@ -122,33 +121,30 @@ def preprocess_csv(csv_file, batch_size, fieldnames):
         print(f"Finished preprocessing. Total batches created: {batch_num}")
         return tmp_dir, batch_num
 
+    else:
+        with open(csv_file, 'r') as file:
+            reader = csv.DictReader(file)
+            header = next(reader)  # Read the header row
+            batch_num = 0
 
-    with open(csv_file, 'r') as file:
-        reader = csv.DictReader(file)
-        header = next(reader)  # Read the header row
-        batch_num = 0
+            while True:
+                batch = list(itertools.islice(reader, batch_size))
+                if not batch:
+                    break  # Exit the loop if batch is empty
 
-        while True:
-            batch = list(itertools.islice(reader, batch_size))
-            if not batch:
-                break  # Exit the loop if batch is empty
+                batch_file = os.path.join(tmp_dir, f"batch_{batch_num}.csv")
+                with open(batch_file, 'w', newline='') as batch_csv:
+                    writer = csv.writer(batch_csv)
+                    writer.writerow(fieldnames)  # Write header using the provided fieldnames
+                    writer.writerows([[row[field] for field in fieldnames] for row in batch])  # Write rows
 
-            batch_file = os.path.join(tmp_dir, f"batch_{batch_num}.csv")
-            with open(batch_file, 'w', newline='') as batch_csv:
-                writer = csv.writer(batch_csv)
-                writer.writerow(fieldnames)  # Write header using the provided fieldnames
-                writer.writerows([[row[field] for field in fieldnames] for row in batch])  # Write rows
-
-            batch_num += 1
-            print(f"Created batch {batch_num}")
+                batch_num += 1
+                print(f"Created batch {batch_num}")
 
     print(f"Finished preprocessing. Total batches created: {batch_num}")
     return tmp_dir, batch_num
 
 
-def default_factory():
-
-    return defaultdict(int)
 
 def process_batch(batch_file, hexagon_size, feature_colname, x_colname, y_colname, cell_id_colname, quality_colname=None, quality_filter=False, count_colname="NA",smoothing=False, quality_per_hexagon=False, quality_per_probe=False,move_x=0,move_y=0,coord_to_um_conversion=1):
     """
@@ -173,13 +169,13 @@ def process_batch(batch_file, hexagon_size, feature_colname, x_colname, y_colnam
 
     """
     
-    hexagon_counts = defaultdict(default_factory)
+    hexagon_counts = {}
     if cell_id_colname != "None":
-        hexagon_cell_counts = defaultdict(default_factory)
+        hexagon_cell_counts = {}
     if quality_per_hexagon==True:
-        hexagon_quality = defaultdict(default_factory)
+        hexagon_quality = {}
     if quality_per_probe==True:
-        probe_quality = defaultdict(default_factory)
+        probe_quality = {}
     if count_colname == "NA":
         
 
@@ -207,8 +203,16 @@ def process_batch(batch_file, hexagon_size, feature_colname, x_colname, y_colnam
                     if quality_filter==True and float(row[quality_colname]) < 20:
                         continue
                     else:
+                        if closest_hexagon not in hexagon_counts:
+                            hexagon_counts[closest_hexagon] = {}
+                        if row[feature_colname] not in hexagon_counts[closest_hexagon]:
+                            hexagon_counts[closest_hexagon][row[feature_colname]] = 0
                         hexagon_counts[closest_hexagon][row[feature_colname]] += 1
                         if cell_id_colname != "None":
+                            if closest_hexagon not in hexagon_cell_counts:
+                                hexagon_cell_counts[closest_hexagon] = {}
+                            if row[cell_id_colname] not in hexagon_cell_counts[closest_hexagon]:
+                                hexagon_cell_counts[closest_hexagon][row[cell_id_colname]] = 0
                             hexagon_cell_counts[closest_hexagon][row[cell_id_colname]] += 1
                     
 
@@ -227,8 +231,16 @@ def process_batch(batch_file, hexagon_size, feature_colname, x_colname, y_colnam
                         y = float(row[y_colname])+move_y
                         for x_new,y_new in [(x+smoothing,y+smoothing),(x-smoothing,y-smoothing),(x-smoothing,y+smoothing),(x+smoothing,y-smoothing)]:
                             closest_hexagon = closest_hex(x_new, y_new, hexagon_size)
+                            if closest_hexagon not in hexagon_counts:
+                                hexagon_counts[closest_hexagon] = {}
+                            if row[feature_colname] not in hexagon_counts[closest_hexagon]:
+                                hexagon_counts[closest_hexagon][row[feature_colname]] = 0
                             hexagon_counts[closest_hexagon][row[feature_colname]] += float(row[count_colname])/4
                             if cell_id_colname != "None":
+                                if closest_hexagon not in hexagon_cell_counts:
+                                    hexagon_cell_counts[closest_hexagon] = {}
+                                if row[cell_id_colname] not in hexagon_cell_counts[closest_hexagon]:
+                                    hexagon_cell_counts[closest_hexagon][row[cell_id_colname]] = 0
                                 hexagon_cell_counts[closest_hexagon][row[cell_id_colname]] += float(row[count_colname])/4
                     except ValueError:
                         print(f"Skipping row due to invalid coordinates: {row}")
@@ -243,8 +255,16 @@ def process_batch(batch_file, hexagon_size, feature_colname, x_colname, y_colnam
                         x = float(row[x_colname])+move_x
                         y = float(row[y_colname])+move_y
                         closest_hexagon = closest_hex(x, y, hexagon_size)
+                        if closest_hexagon not in hexagon_counts:
+                            hexagon_counts[closest_hexagon] = {}
+                        if row[feature_colname] not in hexagon_counts[closest_hexagon]:
+                            hexagon_counts[closest_hexagon][row[feature_colname]] = 0
                         hexagon_counts[closest_hexagon][row[feature_colname]] += float(row[count_colname])
                         if cell_id_colname != "None":
+                            if closest_hexagon not in hexagon_cell_counts:
+                                hexagon_cell_counts[closest_hexagon] = {}
+                            if row[cell_id_colname] not in hexagon_cell_counts[closest_hexagon]:
+                                hexagon_cell_counts[closest_hexagon][row[cell_id_colname]] = 0
                             hexagon_cell_counts[closest_hexagon][row[cell_id_colname]] += float(row[count_colname])
                     except ValueError:
                         print(f"Skipping row due to invalid coordinates: {row}")
@@ -260,6 +280,8 @@ def process_batch(batch_file, hexagon_size, feature_colname, x_colname, y_colnam
     return tuple(returning_items)
 
 
+
+    
 
 
 def process_batch_hexagons(batch,hexagon_counts,hexagon_names,features):
@@ -358,10 +380,10 @@ def process_csv_file(csv_file, hexagon_size, batch_size=1000000, technology="Xen
     print(f"Quality counting per hexagon is set to {quality_per_hexagon}")
     print(f"Quality counting per probe is set to {quality_per_probe}")
 
-    hexagon_counts = defaultdict(default_factory)
-    hexagon_cell_counts = defaultdict(default_factory)
-    hexagon_quality = defaultdict(default_factory)
-    probe_quality = defaultdict(default_factory)
+    hexagon_counts = {}
+    hexagon_cell_counts = {}
+    hexagon_quality = {}
+    probe_quality = {}
     #create a nested dict called hexagon quality, with two keys for each hexagon, one for the quality score and one for the count
     
     if technology == "Xenium":
@@ -438,9 +460,9 @@ def process_csv_file(csv_file, hexagon_size, batch_size=1000000, technology="Xen
 
     tmp_dir, num_batches = preprocess_csv(csv_file, batch_size, fieldnames)
     batch_files = [os.path.join(tmp_dir, f"batch_{i}.csv") for i in range(num_batches)]
-    n_threads = min(max_workers, multiprocessing.cpu_count())
-    print(f"Processing batches using {n_threads} threads")
-    with concurrent.futures.ThreadPoolExecutor(max_workers=n_threads) as executor:
+    n_process = min(max_workers, multiprocessing.cpu_count())
+    print(f"Processing batches using {n_process} processes")
+    with concurrent.futures.ProcessPoolExecutor(max_workers=n_process) as executor:
         futures = [executor.submit(process_batch, batch_file, hexagon_size, feature_colname, x_colname, y_colname, cell_id_colname, quality_colname, quality_filter, count_colname,smoothing,quality_per_hexagon,quality_per_probe, move_x,move_y,coord_to_um_conversion) for batch_file in batch_files]
         
         with tqdm(total=len(batch_files), desc="Processing batches", unit="batch") as progress_bar:
@@ -450,6 +472,10 @@ def process_csv_file(csv_file, hexagon_size, batch_size=1000000, technology="Xen
                 for hexagon_counts_hex, counts in batch_hexagon_counts.items():
                     for feature_name, count in counts.items():
                         try:
+                            if hexagon_counts_hex not in hexagon_counts:
+                                hexagon_counts[hexagon_counts_hex] = {}
+                            if feature_name not in hexagon_counts[hexagon_counts_hex]:
+                                hexagon_counts[hexagon_counts_hex][feature_name] = 0
                             hexagon_counts[hexagon_counts_hex][feature_name] += count
                             
                                 
@@ -461,6 +487,10 @@ def process_csv_file(csv_file, hexagon_size, batch_size=1000000, technology="Xen
                     for hexagon_cell_counts_hex, cell_counts in batch_hexagon_cell_counts.items():
                         for cell_id, cell_count in cell_counts.items():
                             try:
+                                if hexagon_cell_counts_hex not in hexagon_cell_counts:
+                                    hexagon_cell_counts[hexagon_cell_counts_hex] = {}
+                                if cell_id not in hexagon_cell_counts[hexagon_cell_counts_hex]:
+                                    hexagon_cell_counts[hexagon_cell_counts_hex][cell_id] = 0
                                 hexagon_cell_counts[hexagon_cell_counts_hex][cell_id] += cell_count
                             except KeyError:
                                 print(f"Error in trying to add to hexagon_cell_counts")
@@ -505,6 +535,7 @@ def process_csv_file(csv_file, hexagon_size, batch_size=1000000, technology="Xen
     shutil.rmtree(tmp_dir)  # Remove temporary directory and files
 
     return hexagon_counts, hexagon_cell_counts, hexagon_quality, probe_quality
+
 
 
 def process_hexagon(hexagon, hexagon_index, features, hexagon_counts):
@@ -604,7 +635,7 @@ def create_pseudovisium(path,hexagon_counts,hexagon_cell_counts,hexagon_quality,
 
  ############################################## ##############################################
     #if hexagon_cell_counts is empty, then skip
-    if hexagon_cell_counts == defaultdict(default_factory):
+    if hexagon_cell_counts == {}:
         print("No cell information provided. Skipping cell information files.")
     else:
         print("Creating pv_cell_hex.csv file in spatial folder.")
@@ -616,7 +647,7 @@ def create_pseudovisium(path,hexagon_counts,hexagon_cell_counts,hexagon_quality,
                     writer.writerow([cell, hexagon_index + 1, count])
 
  ############################################## ##############################################
-    if hexagon_quality == defaultdict(default_factory):
+    if hexagon_quality == {}:
         print("No quality information provided. Skipping quality information files.")
     else:
         print("Creating quality_per_hexagon.csv file in spatial folder.")
@@ -631,7 +662,7 @@ def create_pseudovisium(path,hexagon_counts,hexagon_cell_counts,hexagon_quality,
                           actual counts were found for this hexagon.""")
 
  ############################################## ##############################################
-    if probe_quality == defaultdict(default_factory):
+    if probe_quality == {}:
         print("No quality information provided. Skipping quality information files.")
     else:
         print("Creating quality_per_probe.csv file in spatial folder.")
