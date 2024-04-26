@@ -150,7 +150,7 @@ def default_factory():
 
     return defaultdict(int)
 
-def process_batch(batch_file, hexagon_size, feature_colname, x_colname, y_colname, cell_id_colname, quality_colname=None, quality_filter=False, count_colname="NA",smoothing=False, quality_per_hexagon=False, quality_per_probe=False,move_x=0,move_y=0):
+def process_batch(batch_file, hexagon_size, feature_colname, x_colname, y_colname, cell_id_colname, quality_colname=None, quality_filter=False, count_colname="NA",smoothing=False, quality_per_hexagon=False, quality_per_probe=False,move_x=0,move_y=0,coord_to_um_conversion=1):
     """
     process_batch(batch_file, hexagon_size, feature_colname, x_colname, y_colname, cell_id_colname, quality_colname=None, quality_filter=False, count_colname="NA", smoothing=False)
     Processes a batch CSV file to calculate hexagon counts and cell counts.
@@ -188,8 +188,8 @@ def process_batch(batch_file, hexagon_size, feature_colname, x_colname, y_colnam
             reader = csv.DictReader(file)
             for row in reader:
                 try:
-                    x = float(row[x_colname]) + move_x
-                    y = float(row[y_colname]) + move_y
+                    x = (float(row[x_colname]) + move_x)*coord_to_um_conversion
+                    y = (float(row[y_colname]) + move_y)*coord_to_um_conversion
                     closest_hexagon = closest_hex(x, y, hexagon_size)
                     if quality_per_hexagon==True:
                         if closest_hexagon not in hexagon_quality:
@@ -266,11 +266,10 @@ def process_batch_hexagons(batch,hexagon_counts,hexagon_names,features):
         batch_matrix_data = []
         for hexagon in batch:
             count_dict = hexagon_counts.get(hexagon, {})
-            if sum(count_dict.values()) > 0:
-                hexagon_index = hexagon_names.index(hexagon)
-                for feature, count in count_dict.items():
-                    feature_index = features.index(feature)
-                    batch_matrix_data.append([feature_index+1, hexagon_index+1, count])
+            hexagon_index = hexagon_names.index(hexagon)
+            for feature, count in count_dict.items():
+                feature_index = features.index(feature)
+                batch_matrix_data.append([feature_index+1, hexagon_index+1, count])
         return batch_matrix_data
 
 
@@ -330,7 +329,7 @@ def write_10X_h5(adata, file):
 
 
 def process_csv_file(csv_file, hexagon_size, batch_size=1000000, technology="Xenium", feature_colname="feature_name", x_colname="x_location", y_colname="y_location", cell_id_colname="None", quality_colname="qv", max_workers=min(2, multiprocessing.cpu_count()),
-                     quality_filter=False, count_colname="NA",smoothing=False,quality_per_hexagon=False,quality_per_probe=False,h5_x_colname="x",h5_y_colname="y",move_x=0,move_y=0):
+                     quality_filter=False, count_colname="NA",smoothing=False,quality_per_hexagon=False,quality_per_probe=False,h5_x_colname="x",h5_y_colname="y",move_x=0,move_y=0,coord_to_um_conversion=1):
     """
     process_csv_file(csv_file, hexagon_size, field_size, batch_size=1000000, technology="Xenium", feature_colname="feature_name", x_colname="x_location", y_colname="y_location", cell_id_colname="None", quality_colname="qv", max_workers=min(2, multiprocessing.cpu_count()), quality_filter=False, count_colname="NA", smoothing=False)
     Processes a CSV file to calculate hexagon counts and cell counts using parallel processing.
@@ -373,6 +372,7 @@ def process_csv_file(csv_file, hexagon_size, batch_size=1000000, technology="Xen
         cell_id_colname = "cell_id"
         quality_colname = "qv"
         count_colname= "NA"
+        coord_to_um_conversion = 1
 
     elif technology == "Vizgen":
         print("Technology is Vizgen. Going forward with default column names.")
@@ -381,6 +381,7 @@ def process_csv_file(csv_file, hexagon_size, batch_size=1000000, technology="Xen
         feature_colname = "gene"
         #cell_id_colname = "barcode_id"
         count_colname= "NA"
+        coord_to_um_conversion = 1
 
     elif technology == "Nanostring":
         print("Technology is Nanostring. Going forward with default column names.")
@@ -389,6 +390,10 @@ def process_csv_file(csv_file, hexagon_size, batch_size=1000000, technology="Xen
         feature_colname = "target"
         cell_id_colname = "cell"
         count_colname= "NA"
+        coord_to_um_conversion = 0.12028
+        #see ref https://smi-public.objects.liquidweb.services/cosmx-wtx/Pancreas-CosMx-ReadMe.html
+        #https://nanostring.com/wp-content/uploads/2023/09/SMI-ReadMe-BETA_humanBrainRelease.html
+
 
     elif technology == "Visium_HD":
         print("Technology is Visium_HD. Going forward with pseudovisium processed colnames.")
@@ -397,6 +402,7 @@ def process_csv_file(csv_file, hexagon_size, batch_size=1000000, technology="Xen
         feature_colname = "gene"
         #cell_id_colname = "barcode"
         count_colname= "count"
+        coord_to_um_conversion = 1
 
     elif technology == "seqFISH":
         print("Technology is seqFISH. Going forward with default column names.")
@@ -405,6 +411,7 @@ def process_csv_file(csv_file, hexagon_size, batch_size=1000000, technology="Xen
         feature_colname = "name"
         cell_id_colname = "cell"
         count_colname= "NA"
+        coord_to_um_conversion = 1
     
     elif technology == "Curio":
         print("Technology is Curio. Going forward with default column names.")
@@ -413,6 +420,7 @@ def process_csv_file(csv_file, hexagon_size, batch_size=1000000, technology="Xen
         feature_colname = "gene"
         cell_id_colname = "barcode"
         count_colname= "count"
+        coord_to_um_conversion = 1
 
 
     else:
@@ -433,7 +441,7 @@ def process_csv_file(csv_file, hexagon_size, batch_size=1000000, technology="Xen
     n_threads = min(max_workers, multiprocessing.cpu_count())
     print(f"Processing batches using {n_threads} threads")
     with concurrent.futures.ThreadPoolExecutor(max_workers=n_threads) as executor:
-        futures = [executor.submit(process_batch, batch_file, hexagon_size, feature_colname, x_colname, y_colname, cell_id_colname, quality_colname, quality_filter, count_colname,smoothing,quality_per_hexagon,quality_per_probe, move_x,move_y) for batch_file in batch_files]
+        futures = [executor.submit(process_batch, batch_file, hexagon_size, feature_colname, x_colname, y_colname, cell_id_colname, quality_colname, quality_filter, count_colname,smoothing,quality_per_hexagon,quality_per_probe, move_x,move_y,coord_to_um_conversion) for batch_file in batch_files]
         
         with tqdm(total=len(batch_files), desc="Processing batches", unit="batch") as progress_bar:
             for future in concurrent.futures.as_completed(futures):
@@ -553,7 +561,6 @@ def create_pseudovisium(path,hexagon_counts,hexagon_cell_counts,hexagon_quality,
         pass
     
  ############################################## ##############################################
-
     # see https://kb.10xgenomics.com/hc/en-us/articles/11636252598925-What-are-the-Xenium-image-scale-factors
     #https://www.10xgenomics.com/support/software/space-ranger/latest/analysis/outputs/spatial-outputs
     scalefactors = {"tissue_hires_scalef":tissue_hires_scalef,
@@ -575,7 +582,6 @@ def create_pseudovisium(path,hexagon_counts,hexagon_cell_counts,hexagon_quality,
         contain.append(1 if sum(hexagon_counts[hexagon].values()) > hexagon_size else 0)
         hexagon_names.append(hexagon)
     
-
  ############################################## ##############################################
     barcodes = ["hexagon_{}".format(i) for i in range(1, len(hexagon_names) + 1)]
     barcodes_table = pd.DataFrame({'barcode':barcodes})
@@ -587,8 +593,6 @@ def create_pseudovisium(path,hexagon_counts,hexagon_cell_counts,hexagon_quality,
         with gzip.open(folderpath +'/barcodes.tsv.gz', 'wb') as f_out:
             f_out.writelines(f_in)
  ############################################## ##############################################
-
-
     hexagon_table = pd.DataFrame(zip(barcodes, contain, y_, x_, 
                                  [int(image_pixels_per_um * a) for a in y],
                                  [int(image_pixels_per_um * a) for a in x]),
@@ -607,10 +611,9 @@ def create_pseudovisium(path,hexagon_counts,hexagon_cell_counts,hexagon_quality,
         with open(folderpath + '/spatial/pv_cell_hex.csv', 'w', newline='') as f:
             writer = csv.writer(f)
             for hexagon, cell_count_dict in hexagon_cell_counts.items():
-                if sum(cell_count_dict.values()) > 0:
-                    hexagon_index = hexagon_names.index(hexagon)
-                    for cell, count in cell_count_dict.items():
-                        writer.writerow([cell, hexagon_index + 1, count])
+                hexagon_index = hexagon_names.index(hexagon)
+                for cell, count in cell_count_dict.items():
+                    writer.writerow([cell, hexagon_index + 1, count])
 
  ############################################## ##############################################
     if hexagon_quality == defaultdict(default_factory):
@@ -639,7 +642,6 @@ def create_pseudovisium(path,hexagon_counts,hexagon_cell_counts,hexagon_quality,
 
  ############################################## ##############################################
 
-    
     features = list(set(feature for hexagon_counts in hexagon_counts.values() for feature in hexagon_counts)) 
     # Create a list of rows with repeated features and 'Gene Expression' column
     rows = [[feature, feature, 'Gene Expression'] for feature in features]
@@ -667,7 +669,7 @@ def create_pseudovisium(path,hexagon_counts,hexagon_cell_counts,hexagon_quality,
 
     total_count = 0
     n_processes = min(max_workers, multiprocessing.cpu_count())
-    batch_size_n_hexagons = n_total_hexagons // (n_processes * 2)
+    batch_size_n_hexagons = n_total_hexagons // (n_processes * 4)
     print(f"Using {n_processes} processes")
     print(f"Processing {n_total_hexagons} hexagons in batches of {batch_size_n_hexagons} hexagons")
     with concurrent.futures.ProcessPoolExecutor(max_workers=n_processes) as executor:
@@ -944,7 +946,7 @@ def generate_pv(csv_file,img_file_path=None, hexagon_size=100,  output_path=None
                 feature_colname="feature_name", x_colname="x_location", y_colname="y_location",
                 cell_id_colname="None", quality_colname="qv",
                 pixel_to_micron=False, max_workers=min(2, multiprocessing.cpu_count()), quality_filter=False, count_colname="NA",visium_hd_folder=None,
-                smoothing=False,quality_per_hexagon=False,quality_per_probe=False,h5_x_colname = "x", h5_y_colname = "y",move_x=0,move_y=0):
+                smoothing=False,quality_per_hexagon=False,quality_per_probe=False,h5_x_colname = "x", h5_y_colname = "y",move_x=0,move_y=0,coord_to_um_conversion=1):
     """
     generate_pv(csv_file, img_file_path=None, hexagon_size=100, field_size_x=1000, field_size_y=1000, output_path=None, 
     batch_size=1000000, alignment_matrix_file=None, project_name='project', image_pixels_per_um=1/0.85, tissue_hires_scalef=0.2, 
@@ -1001,7 +1003,7 @@ def generate_pv(csv_file,img_file_path=None, hexagon_size=100,  output_path=None
     hexagon_counts, hexagon_cell_counts, hexagon_quality, probe_quality= process_csv_file(csv_file, hexagon_size,  batch_size, 
              technology, feature_colname, x_colname, y_colname,cell_id_colname, quality_colname=quality_colname,
                max_workers=max_workers, quality_filter=quality_filter, count_colname=count_colname,smoothing=smoothing,
-               quality_per_hexagon=quality_per_hexagon,quality_per_probe=quality_per_probe,h5_x_colname=h5_x_colname,h5_y_colname=h5_y_colname,move_x=move_x,move_y=move_y)
+               quality_per_hexagon=quality_per_hexagon,quality_per_probe=quality_per_probe,h5_x_colname=h5_x_colname,h5_y_colname=h5_y_colname,move_x=move_x,move_y=move_y,coord_to_um_conversion=coord_to_um_conversion)
         
     # Create Pseudovisium output
     create_pseudovisium(path=output_path,hexagon_counts=hexagon_counts, hexagon_cell_counts=hexagon_cell_counts, probe_quality=probe_quality,
@@ -1021,7 +1023,7 @@ def generate_pv(csv_file,img_file_path=None, hexagon_size=100,  output_path=None
                     "quality_colname":quality_colname,"quality_filter":quality_filter,"count_colname":count_colname,
                     "smoothing":smoothing,"quality_per_hexagon":quality_per_hexagon,"quality_per_probe":quality_per_probe,
                     "max_workers":max_workers,"visium_hd_folder":visium_hd_folder,"h5_x_colname":h5_x_colname,"h5_y_colname":h5_y_colname,
-                    "move_x":move_x,"move_y":move_y}
+                    "move_x":move_x,"move_y":move_y,"coord_to_um_conversion":coord_to_um_conversion}
 
     with open(output_path + '/pseudovisium/' + project_name + '/arguments.json', 'w') as f:
         json.dump(arguments, f)
@@ -1065,6 +1067,7 @@ def main():
     parser.add_argument("--h5_y_colname", "-h5y", type=str, help="Y column name in h5ad file", default="y")
     parser.add_argument("--move_x","-mx", type=int, help="Move x", default=0)
     parser.add_argument("--move_y","-my", type=int, help="Move y", default=0)
+    parser.add_argument("--coord_to_um_conversion","-ctu", type=float, help="Conversion factor from coordinates to microns", default=1.0)
     parser.add_argument("-v", "--verbose", action="store_true", help="Print out script purpose and parameters")
     
     
@@ -1076,9 +1079,6 @@ def main():
         print("This is Pseudovisium, a software that compresses imaging-based spatial transcriptomics files using hexagonal binning of the data.")
         parser.print_help()
         sys.exit(0)
-
-    #print value of quality filter
-    print(f"Quality filter is set to {args.quality_filter}")
     
 
     generate_pv(csv_file=args.csv_file,img_file_path=args.img_file_path,
@@ -1097,6 +1097,7 @@ def main():
                 quality_per_probe=args.quality_per_probe,
                 h5_x_colname=args.h5_x_colname,h5_y_colname=args.h5_y_colname,
                 move_x=args.move_x,move_y=args.move_y,
+                coord_to_um_conversion=args.coord_to_um_conversion,
                 visium_hd_folder=args.visium_hd_folder)
                 
     print("Pseudovisium output generated successfully.")
