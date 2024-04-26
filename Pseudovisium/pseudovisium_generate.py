@@ -78,43 +78,6 @@ def closest_hex(x,y,hexagon_size):
 
 
 
-def initialize_hexagons(hexagon_size, field_size):
-    """
-    initialize_hexagons(hexagon_size, field_size)
-    Initializes a dictionary of hexagon centroids for a given hexagon size and field size.
-
-    Args:
-    hexagon_size (float): The size of the hexagon.
-    field_size (tuple): The size of the field as (field_size_x, field_size_y).
-
-    Returns:
-        dict: A dictionary where the keys are the hexagon centroid coordinates (x, y) and the values are the same coordinates.
-    """
-
-
-
-    print('initializing hexagons')
-    # given an initial x and y coordinate, this function will create a zig-zag hexagonal lattice, where
-    # hexagon size is the distance from the centroid to the vertex
-    hexagons = {(0, 0): (0, 0)}
-    # create hexagon centroids
-    field_size_x, field_size_y = field_size
-    for dy, i in zip(np.arange(-field_size_y * (1.732050807 * hexagon_size), (field_size_y) * (1.732050807 * hexagon_size), 1.732050807 * hexagon_size), [1, 2] * field_size_y):
-        if i == 1:
-            for dx in range((-field_size_x + 1) * hexagon_size, (field_size_x + 1) * hexagon_size, 2 * hexagon_size):
-
-                hexagons[(dx, dy)] = (dx, dy)
-        else:
-            for dx in range((-field_size_x) * hexagon_size, (field_size_x) * hexagon_size, 2 * hexagon_size):
-                
-                hexagons[(dx, dy)] = (dx, dy)
-    min_x = min([x for x, y in hexagons.keys()])
-    min_y = min([y for x, y in hexagons.keys()])
-    # rename hexagons both keys and values
-    hexagons = {(round(x - min_x, 0), round(y - min_y, 1)): (round(x - min_x, 0), round(y - min_y, 1)) for (x, y) in hexagons.keys()}
-    
-    return hexagons
-
 
 def preprocess_csv(csv_file, batch_size, fieldnames):
     """
@@ -137,6 +100,7 @@ def preprocess_csv(csv_file, batch_size, fieldnames):
     #if csv_file is .gz, then open it with gzip
     if csv_file.endswith('.gz'):
         with gzip.open(csv_file, 'rt') as file:
+            print("Now creating batches")
             reader = csv.DictReader(file)
             header = next(reader)  # Read the header row
             batch_num = 0
@@ -186,7 +150,7 @@ def default_factory():
 
     return defaultdict(int)
 
-def process_batch(batch_file, hexagon_size, feature_colname, x_colname, y_colname, cell_id_colname, quality_colname=None, quality_filter=False, count_colname="NA",smoothing=False, quality_per_hexagon=False, quality_per_probe=False):
+def process_batch(batch_file, hexagon_size, feature_colname, x_colname, y_colname, cell_id_colname, quality_colname=None, quality_filter=False, count_colname="NA",smoothing=False, quality_per_hexagon=False, quality_per_probe=False,move_x=0,move_y=0):
     """
     process_batch(batch_file, hexagon_size, feature_colname, x_colname, y_colname, cell_id_colname, quality_colname=None, quality_filter=False, count_colname="NA", smoothing=False)
     Processes a batch CSV file to calculate hexagon counts and cell counts.
@@ -209,25 +173,23 @@ def process_batch(batch_file, hexagon_size, feature_colname, x_colname, y_colnam
 
     """
     
-    hexagon_counts = {}
+    hexagon_counts = defaultdict(default_factory)
     if cell_id_colname != "None":
-        hexagon_cell_counts = {}
+        hexagon_cell_counts = defaultdict(default_factory)
     if quality_per_hexagon==True:
-        hexagon_quality = {}
+        hexagon_quality = defaultdict(default_factory)
     if quality_per_probe==True:
-        probe_quality = {}
+        probe_quality = defaultdict(default_factory)
     if count_colname == "NA":
-        print(f"Quality filter is set to {quality_filter}")
-        print(f"Quality counting per hexagon is set to {quality_per_hexagon}")
-        print(f"Quality counting per probe is set to {quality_per_probe}")
+        
 
         ##########Xenium with quality filter scenario
         with open(batch_file, 'r') as file:
             reader = csv.DictReader(file)
             for row in reader:
                 try:
-                    x = float(row[x_colname])
-                    y = float(row[y_colname])
+                    x = float(row[x_colname]) + move_x
+                    y = float(row[y_colname]) + move_y
                     closest_hexagon = closest_hex(x, y, hexagon_size)
                     if quality_per_hexagon==True:
                         if closest_hexagon not in hexagon_quality:
@@ -245,21 +207,13 @@ def process_batch(batch_file, hexagon_size, feature_colname, x_colname, y_colnam
                     if quality_filter==True and float(row[quality_colname]) < 20:
                         continue
                     else:
-                        if closest_hexagon not in hexagon_counts:
-                            hexagon_counts[closest_hexagon] = {}
-                        if row[feature_colname] not in hexagon_counts[closest_hexagon]:
-                            hexagon_counts[closest_hexagon][row[feature_colname]] = 0
                         hexagon_counts[closest_hexagon][row[feature_colname]] += 1
                         if cell_id_colname != "None":
-                            if closest_hexagon not in hexagon_cell_counts:
-                                hexagon_cell_counts[closest_hexagon] = {}
-                            if row[cell_id_colname] not in hexagon_cell_counts[closest_hexagon]:
-                                hexagon_cell_counts[closest_hexagon][row[cell_id_colname]] = 0
                             hexagon_cell_counts[closest_hexagon][row[cell_id_colname]] += 1
                     
 
                 except ValueError:
-                    print(f"Skipping row due to invalid coordinates: {row}")
+                    print(f"Skipping row")
         
     else:
         if smoothing!=False:
@@ -269,20 +223,12 @@ def process_batch(batch_file, hexagon_size, feature_colname, x_colname, y_colnam
                 reader = csv.DictReader(file)
                 for row in reader:
                     try:
-                        x = float(row[x_colname])
-                        y = float(row[y_colname])
+                        x = float(row[x_colname])+move_x
+                        y = float(row[y_colname])+move_y
                         for x_new,y_new in [(x+smoothing,y+smoothing),(x-smoothing,y-smoothing),(x-smoothing,y+smoothing),(x+smoothing,y-smoothing)]:
                             closest_hexagon = closest_hex(x_new, y_new, hexagon_size)
-                            if closest_hexagon not in hexagon_counts:
-                                hexagon_counts[closest_hexagon] = {}
-                            if row[feature_colname] not in hexagon_counts[closest_hexagon]:
-                                hexagon_counts[closest_hexagon][row[feature_colname]] = 0
                             hexagon_counts[closest_hexagon][row[feature_colname]] += float(row[count_colname])/4
                             if cell_id_colname != "None":
-                                if closest_hexagon not in hexagon_cell_counts:
-                                    hexagon_cell_counts[closest_hexagon] = {}
-                                if row[cell_id_colname] not in hexagon_cell_counts[closest_hexagon]:
-                                    hexagon_cell_counts[closest_hexagon][row[cell_id_colname]] = 0
                                 hexagon_cell_counts[closest_hexagon][row[cell_id_colname]] += float(row[count_colname])/4
                     except ValueError:
                         print(f"Skipping row due to invalid coordinates: {row}")
@@ -294,19 +240,11 @@ def process_batch(batch_file, hexagon_size, feature_colname, x_colname, y_colnam
                 reader = csv.DictReader(file)
                 for row in reader:
                     try:
-                        x = float(row[x_colname])
-                        y = float(row[y_colname])
+                        x = float(row[x_colname])+move_x
+                        y = float(row[y_colname])+move_y
                         closest_hexagon = closest_hex(x, y, hexagon_size)
-                        if closest_hexagon not in hexagon_counts:
-                            hexagon_counts[closest_hexagon] = {}
-                        if row[feature_colname] not in hexagon_counts[closest_hexagon]:
-                            hexagon_counts[closest_hexagon][row[feature_colname]] = 0
                         hexagon_counts[closest_hexagon][row[feature_colname]] += float(row[count_colname])
                         if cell_id_colname != "None":
-                            if closest_hexagon not in hexagon_cell_counts:
-                                hexagon_cell_counts[closest_hexagon] = {}
-                            if row[cell_id_colname] not in hexagon_cell_counts[closest_hexagon]:
-                                hexagon_cell_counts[closest_hexagon][row[cell_id_colname]] = 0
                             hexagon_cell_counts[closest_hexagon][row[cell_id_colname]] += float(row[count_colname])
                     except ValueError:
                         print(f"Skipping row due to invalid coordinates: {row}")
@@ -391,8 +329,8 @@ def write_10X_h5(adata, file):
     
 
 
-def process_csv_file(csv_file, hexagon_size, field_size, batch_size=1000000, technology="Xenium", feature_colname="feature_name", x_colname="x_location", y_colname="y_location", cell_id_colname="None", quality_colname="qv", max_workers=min(2, multiprocessing.cpu_count()),
-                     quality_filter=False, count_colname="NA",smoothing=False,quality_per_hexagon=False,quality_per_probe=False,h5_x_colname="x",h5_y_colname="y"):
+def process_csv_file(csv_file, hexagon_size, batch_size=1000000, technology="Xenium", feature_colname="feature_name", x_colname="x_location", y_colname="y_location", cell_id_colname="None", quality_colname="qv", max_workers=min(2, multiprocessing.cpu_count()),
+                     quality_filter=False, count_colname="NA",smoothing=False,quality_per_hexagon=False,quality_per_probe=False,h5_x_colname="x",h5_y_colname="y",move_x=0,move_y=0):
     """
     process_csv_file(csv_file, hexagon_size, field_size, batch_size=1000000, technology="Xenium", feature_colname="feature_name", x_colname="x_location", y_colname="y_location", cell_id_colname="None", quality_colname="qv", max_workers=min(2, multiprocessing.cpu_count()), quality_filter=False, count_colname="NA", smoothing=False)
     Processes a CSV file to calculate hexagon counts and cell counts using parallel processing.
@@ -417,14 +355,14 @@ def process_csv_file(csv_file, hexagon_size, field_size, batch_size=1000000, tec
         tuple: A tuple containing the hexagon counts, hexagons dictionary, and hexagon cell counts.
     """
 
+    print(f"Quality filter is set to {quality_filter}")
+    print(f"Quality counting per hexagon is set to {quality_per_hexagon}")
+    print(f"Quality counting per probe is set to {quality_per_probe}")
 
-
-
-    hexagons = initialize_hexagons(hexagon_size, field_size)
-    hexagon_counts = {hexagon: defaultdict(int) for hexagon in hexagons}
-    hexagon_cell_counts = {hexagon: defaultdict(int) for hexagon in hexagons}
-    hexagon_quality = {hexagon: defaultdict(int) for hexagon in hexagons}
-    probe_quality = {}
+    hexagon_counts = defaultdict(default_factory)
+    hexagon_cell_counts = defaultdict(default_factory)
+    hexagon_quality = defaultdict(default_factory)
+    probe_quality = defaultdict(default_factory)
     #create a nested dict called hexagon quality, with two keys for each hexagon, one for the quality score and one for the count
     
     if technology == "Xenium":
@@ -492,8 +430,10 @@ def process_csv_file(csv_file, hexagon_size, field_size, batch_size=1000000, tec
 
     tmp_dir, num_batches = preprocess_csv(csv_file, batch_size, fieldnames)
     batch_files = [os.path.join(tmp_dir, f"batch_{i}.csv") for i in range(num_batches)]
-    with concurrent.futures.ThreadPoolExecutor(max_workers=min(max_workers, multiprocessing.cpu_count())) as executor:
-        futures = [executor.submit(process_batch, batch_file, hexagon_size, feature_colname, x_colname, y_colname, cell_id_colname, quality_colname, quality_filter, count_colname,smoothing,quality_per_hexagon,quality_per_probe) for batch_file in batch_files]
+    n_threads = min(max_workers, multiprocessing.cpu_count())
+    print(f"Processing batches using {n_threads} threads")
+    with concurrent.futures.ThreadPoolExecutor(max_workers=n_threads) as executor:
+        futures = [executor.submit(process_batch, batch_file, hexagon_size, feature_colname, x_colname, y_colname, cell_id_colname, quality_colname, quality_filter, count_colname,smoothing,quality_per_hexagon,quality_per_probe, move_x,move_y) for batch_file in batch_files]
         
         with tqdm(total=len(batch_files), desc="Processing batches", unit="batch") as progress_bar:
             for future in concurrent.futures.as_completed(futures):
@@ -503,8 +443,10 @@ def process_csv_file(csv_file, hexagon_size, field_size, batch_size=1000000, tec
                     for feature_name, count in counts.items():
                         try:
                             hexagon_counts[hexagon_counts_hex][feature_name] += count
+                            
+                                
                         except KeyError:
-                            print(f"Feature {feature_name} not found in hexagon_counts")
+                            print(f"Error in trying to add to hexagon_counts")
 
                 if cell_id_colname != "None":
                     batch_hexagon_cell_counts = all_res[1]
@@ -513,7 +455,7 @@ def process_csv_file(csv_file, hexagon_size, field_size, batch_size=1000000, tec
                             try:
                                 hexagon_cell_counts[hexagon_cell_counts_hex][cell_id] += cell_count
                             except KeyError:
-                                print(f"Cell ID {cell_id} not found in hexagon_cell_counts")
+                                print(f"Error in trying to add to hexagon_cell_counts")
 
                 if quality_per_hexagon==True:
                     if cell_id_colname != "None":
@@ -528,7 +470,7 @@ def process_csv_file(csv_file, hexagon_size, field_size, batch_size=1000000, tec
                                 hexagon_quality[hexagon_quality_hex]["mean"] = (float(hexagon_quality[hexagon_quality_hex]["mean"]) * hexagon_quality[hexagon_quality_hex]["count"] + float(quality_dict["mean"]) * quality_dict["count"]) / (hexagon_quality[hexagon_quality_hex]["count"] + quality_dict["count"])
                                 hexagon_quality[hexagon_quality_hex]["count"] += quality_dict["count"]
                         except KeyError:
-                            print(f"Quality not found in hexagon_quality for hexagon {hexagon_quality_hex}")
+                            print(f"Error in trying to add to hexagon_quality")
                 
                 if quality_per_probe==True:
                     if cell_id_colname != "None" and quality_per_hexagon==True:
@@ -549,12 +491,12 @@ def process_csv_file(csv_file, hexagon_size, field_size, batch_size=1000000, tec
                                 probe_quality[probe]["mean"] = (float(probe_quality[probe]["mean"]) * probe_quality[probe]["count"] + float(quality_dict["mean"]) * quality_dict["count"]) / (probe_quality[probe]["count"] + quality_dict["count"])
                                 probe_quality[probe]["count"] += quality_dict["count"]
                         except KeyError:
-                            print(f"Quality not found in probe_quality for probe {probe}")
+                            print(f"Error in trying to add to probe_quality")
                 progress_bar.update(1)
 
     shutil.rmtree(tmp_dir)  # Remove temporary directory and files
 
-    return hexagon_counts, hexagons, hexagon_cell_counts, hexagon_quality, probe_quality
+    return hexagon_counts, hexagon_cell_counts, hexagon_quality, probe_quality
 
 
 def process_hexagon(hexagon, hexagon_index, features, hexagon_counts):
@@ -571,7 +513,7 @@ def hex_to_rows(hexagon_batch, start_index, features, hexagon_counts):
     print(f"Batch total count: {sum(row[2] for row in matrix_data)}")
     return matrix_data
 
-def create_pseudovisium(path,hexagon_counts,hexagons,hexagon_cell_counts,hexagon_quality, probe_quality,
+def create_pseudovisium(path,hexagon_counts,hexagon_cell_counts,hexagon_quality, probe_quality,
                         img_file_path=None,  project_name="project",
                          alignment_matrix_file=None,image_pixels_per_um=1/0.2125,hexagon_size=100,tissue_hires_scalef=0.2,
                          pixel_to_micron=False,max_workers=min(2, multiprocessing.cpu_count())):
@@ -658,7 +600,7 @@ def create_pseudovisium(path,hexagon_counts,hexagons,hexagon_cell_counts,hexagon
 
  ############################################## ##############################################
     #if hexagon_cell_counts is empty, then skip
-    if hexagon_cell_counts == {hexagon: defaultdict(int) for hexagon in hexagons}:
+    if hexagon_cell_counts == defaultdict(default_factory):
         print("No cell information provided. Skipping cell information files.")
     else:
         print("Creating pv_cell_hex.csv file in spatial folder.")
@@ -671,18 +613,22 @@ def create_pseudovisium(path,hexagon_counts,hexagons,hexagon_cell_counts,hexagon
                         writer.writerow([cell, hexagon_index + 1, count])
 
  ############################################## ##############################################
-    if hexagon_quality == {hexagon: defaultdict(int) for hexagon in hexagons}:
+    if hexagon_quality == defaultdict(default_factory):
         print("No quality information provided. Skipping quality information files.")
     else:
         print("Creating quality_per_hexagon.csv file in spatial folder.")
         with open(folderpath + '/spatial/quality_per_hexagon.csv', 'w', newline='') as f:
             writer = csv.writer(f)
             for hexagon, quality_dict in hexagon_quality.items():
-                hexagon_index = hexagon_names.index(hexagon)
-                writer.writerow([hexagon_index + 1, quality_dict["mean"], quality_dict["count"]])
+                try:
+                    hexagon_index = hexagon_names.index(hexagon)
+                    writer.writerow([hexagon_index + 1, quality_dict["mean"], quality_dict["count"]])
+                except ValueError:
+                    print(f"""One hexagon quality measurement skipped, with mean {quality_dict['mean']} and count {quality_dict['count']}, as no
+                          actual counts were found for this hexagon.""")
 
  ############################################## ##############################################
-    if probe_quality == {}:
+    if probe_quality == defaultdict(default_factory):
         print("No quality information provided. Skipping quality information files.")
     else:
         print("Creating quality_per_probe.csv file in spatial folder.")
@@ -690,9 +636,6 @@ def create_pseudovisium(path,hexagon_counts,hexagons,hexagon_cell_counts,hexagon
             writer = csv.writer(f)
             for probe, quality_dict in probe_quality.items():
                 writer.writerow([probe, quality_dict["mean"], quality_dict["count"]])
-
-
-
 
  ############################################## ##############################################
 
@@ -719,12 +662,15 @@ def create_pseudovisium(path,hexagon_counts,hexagons,hexagon_cell_counts,hexagon
 
     print("Putting together the matrix.mtx file")
     matrix_data = []
-    batch_size_n_hexagons = 500
+
     n_total_hexagons = len(ordered_hexagon_counts)
-    print(f"Processing {n_total_hexagons} hexagons in batches of {batch_size_n_hexagons} hexagons")
 
     total_count = 0
-    with concurrent.futures.ProcessPoolExecutor(max_workers=max_workers) as executor:
+    n_processes = min(max_workers, multiprocessing.cpu_count())
+    batch_size_n_hexagons = n_total_hexagons // (n_processes * 2)
+    print(f"Using {n_processes} processes")
+    print(f"Processing {n_total_hexagons} hexagons in batches of {batch_size_n_hexagons} hexagons")
+    with concurrent.futures.ProcessPoolExecutor(max_workers=n_processes) as executor:
         futures = []
         hexagon_names = list(ordered_hexagon_counts.keys())
         for i in range(0, n_total_hexagons, batch_size_n_hexagons):
@@ -993,13 +939,12 @@ def visium_hd_curio_to_transcripts(folder,output,technology,x_col=None,y_col=Non
 
 ######### Main function to generate pseudovisium output ############################################################################################################
     
-def generate_pv(csv_file,img_file_path=None, hexagon_size=100, field_size_x=1000, 
-                field_size_y=1000, output_path=None, batch_size=1000000, alignment_matrix_file=None, project_name='project',
+def generate_pv(csv_file,img_file_path=None, hexagon_size=100,  output_path=None, batch_size=1000000, alignment_matrix_file=None, project_name='project',
                 image_pixels_per_um=1/0.85, tissue_hires_scalef=0.2,technology="Xenium", 
                 feature_colname="feature_name", x_colname="x_location", y_colname="y_location",
                 cell_id_colname="None", quality_colname="qv",
                 pixel_to_micron=False, max_workers=min(2, multiprocessing.cpu_count()), quality_filter=False, count_colname="NA",visium_hd_folder=None,
-                smoothing=False,quality_per_hexagon=False,quality_per_probe=False,h5_x_colname = "x", h5_y_colname = "y"):
+                smoothing=False,quality_per_hexagon=False,quality_per_probe=False,h5_x_colname = "x", h5_y_colname = "y",move_x=0,move_y=0):
     """
     generate_pv(csv_file, img_file_path=None, hexagon_size=100, field_size_x=1000, field_size_y=1000, output_path=None, 
     batch_size=1000000, alignment_matrix_file=None, project_name='project', image_pixels_per_um=1/0.85, tissue_hires_scalef=0.2, 
@@ -1052,14 +997,14 @@ def generate_pv(csv_file,img_file_path=None, hexagon_size=100, field_size_x=1000
         smoothing = smoothing_scale/4
         
         # Process CSV file to generate hexagon counts and hexagon information
-    field_size = (field_size_x, field_size_y)
-    hexagon_counts, hexagons, hexagon_cell_counts, hexagon_quality, probe_quality= process_csv_file(csv_file, hexagon_size, field_size, batch_size, 
+    
+    hexagon_counts, hexagon_cell_counts, hexagon_quality, probe_quality= process_csv_file(csv_file, hexagon_size,  batch_size, 
              technology, feature_colname, x_colname, y_colname,cell_id_colname, quality_colname=quality_colname,
                max_workers=max_workers, quality_filter=quality_filter, count_colname=count_colname,smoothing=smoothing,
-               quality_per_hexagon=quality_per_hexagon,quality_per_probe=quality_per_probe,h5_x_colname=h5_x_colname,h5_y_colname=h5_y_colname)
+               quality_per_hexagon=quality_per_hexagon,quality_per_probe=quality_per_probe,h5_x_colname=h5_x_colname,h5_y_colname=h5_y_colname,move_x=move_x,move_y=move_y)
         
     # Create Pseudovisium output
-    create_pseudovisium(path=output_path,hexagon_counts=hexagon_counts, hexagons=hexagons, hexagon_cell_counts=hexagon_cell_counts, probe_quality=probe_quality,
+    create_pseudovisium(path=output_path,hexagon_counts=hexagon_counts, hexagon_cell_counts=hexagon_cell_counts, probe_quality=probe_quality,
                         img_file_path=img_file_path, hexagon_quality =hexagon_quality,
                           project_name=project_name, alignment_matrix_file=alignment_matrix_file,
                           image_pixels_per_um=image_pixels_per_um,hexagon_size=hexagon_size,
@@ -1068,14 +1013,15 @@ def generate_pv(csv_file,img_file_path=None, hexagon_size=100, field_size_x=1000
     #save all arguments in a json file called arguments.json
     print("Creating arguments.json file in output path.")
     arguments = {"csv_file":csv_file,"img_file_path":img_file_path,"hexagon_size":hexagon_size,
-                    "field_size_x":field_size_x,"field_size_y":field_size_y,"output_path":output_path,
+                    "output_path":output_path,
                     "batch_size":batch_size,"alignment_matrix_file":alignment_matrix_file,"project_name":project_name,
                     "image_pixels_per_um":image_pixels_per_um,"tissue_hires_scalef":tissue_hires_scalef,
                     "technology":technology,"feature_colname":feature_colname,"x_colname":x_colname,
                     "y_colname":y_colname,"cell_id_colname":cell_id_colname,"pixel_to_micron":pixel_to_micron,
                     "quality_colname":quality_colname,"quality_filter":quality_filter,"count_colname":count_colname,
                     "smoothing":smoothing,"quality_per_hexagon":quality_per_hexagon,"quality_per_probe":quality_per_probe,
-                    "max_workers":max_workers,"visium_hd_folder":visium_hd_folder,"h5_x_colname":h5_x_colname,"h5_y_colname":h5_y_colname}
+                    "max_workers":max_workers,"visium_hd_folder":visium_hd_folder,"h5_x_colname":h5_x_colname,"h5_y_colname":h5_y_colname,
+                    "move_x":move_x,"move_y":move_y}
 
     with open(output_path + '/pseudovisium/' + project_name + '/arguments.json', 'w') as f:
         json.dump(arguments, f)
@@ -1095,8 +1041,6 @@ def main():
     parser.add_argument("--csv_file", "-c", type=str, help="CSV file path", default=None)
     parser.add_argument("--output_path", "-o", type=str, help="Output path", default='.')
     parser.add_argument("--hexagon_size", "-hs", type=int, help="Hexagon size", default=100)
-    parser.add_argument("--field_size_x", "-fsx", type=int, help="Field size x", default=1000)
-    parser.add_argument("--field_size_y", "-fsy", type=int, help="Field size y", default=1000)
     parser.add_argument("--img_file_path", "-i", type=str, help="Image file path", default=None)
     parser.add_argument("--alignment_matrix_file", "-am", type=str, help="Alignment matrix file path", default=None)
     parser.add_argument("--batch_size", "-b", type=int, help="Batch size", default=1000000)
@@ -1119,6 +1063,8 @@ def main():
     parser.add_argument("--quality_per_probe", "-qpp", action="store_true", help="Calculate quality per probe")
     parser.add_argument("--h5_x_colname", "-h5x", type=str, help="X column name in h5ad file", default="x")
     parser.add_argument("--h5_y_colname", "-h5y", type=str, help="Y column name in h5ad file", default="y")
+    parser.add_argument("--move_x","-mx", type=int, help="Move x", default=0)
+    parser.add_argument("--move_y","-my", type=int, help="Move y", default=0)
     parser.add_argument("-v", "--verbose", action="store_true", help="Print out script purpose and parameters")
     
     
@@ -1136,8 +1082,7 @@ def main():
     
 
     generate_pv(csv_file=args.csv_file,img_file_path=args.img_file_path,
-                hexagon_size=args.hexagon_size, field_size_x=args.field_size_x, 
-                field_size_y=args.field_size_y, output_path=args.output_path, 
+                hexagon_size=args.hexagon_size, output_path=args.output_path, 
                 batch_size=args.batch_size,
                 alignment_matrix_file=args.alignment_matrix_file, 
                 project_name=args.project_name,image_pixels_per_um=args.image_pixels_per_um, 
@@ -1151,6 +1096,7 @@ def main():
                 quality_per_hexagon=args.quality_per_hexagon,
                 quality_per_probe=args.quality_per_probe,
                 h5_x_colname=args.h5_x_colname,h5_y_colname=args.h5_y_colname,
+                move_x=args.move_x,move_y=args.move_y,
                 visium_hd_folder=args.visium_hd_folder)
                 
     print("Pseudovisium output generated successfully.")
