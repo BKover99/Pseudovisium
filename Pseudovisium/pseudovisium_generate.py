@@ -544,7 +544,7 @@ def process_hexagon(hexagon, hexagon_index, features, hexagon_counts):
 
 def hex_to_rows(hexagon_batch, start_index, features, hexagon_counts):
     matrix_data = []
-    for hexagon_index, hexagon in enumerate(hexagon_batch, start=start_index):
+    for hexagon_index, hexagon in enumerate(hexagon_batch, start=start_index): ###Here is the error!!! HExagon indices are scrambled!!!!!
         count_dict = hexagon_counts.get(hexagon, {})
         for feature, count in count_dict.items():
             feature_index = features.index(feature)
@@ -699,25 +699,20 @@ def create_pseudovisium(path,hexagon_counts,hexagon_cell_counts,hexagon_quality,
     n_total_hexagons = len(ordered_hexagon_counts)
 
     total_count = 0
-    n_processes = min(max_workers, multiprocessing.cpu_count())
-    batch_size_n_hexagons = n_total_hexagons // (n_processes * 4)
-    print(f"Using {n_processes} processes")
-    print(f"Processing {n_total_hexagons} hexagons in batches of {batch_size_n_hexagons} hexagons")
-    with concurrent.futures.ProcessPoolExecutor(max_workers=n_processes) as executor:
-        futures = []
-        hexagon_names = list(ordered_hexagon_counts.keys())
-        for i in range(0, n_total_hexagons, batch_size_n_hexagons):
-            hexagon_batch = hexagon_names[i:i + batch_size_n_hexagons]
-            future = executor.submit(hex_to_rows, hexagon_batch, i, features, ordered_hexagon_counts)
-            futures.append(future)
+    matrix_data = []
 
-        with tqdm(total=len(futures), desc="Processing batches") as pbar:
-            for future in concurrent.futures.as_completed(futures):
-                batch_matrix_data = future.result()
-                matrix_data.extend(batch_matrix_data)
-                total_count += sum(row[2] for row in batch_matrix_data)
-                pbar.update(1)
+    for hexagon, count_dict in hexagon_counts.items():
+        if sum(count_dict.values()) > 0:
+            hexagon_index = hexagon_names.index(hexagon)
+            for feature, count in count_dict.items():
+                feature_index = features.index(feature)
+                matrix_data.append([feature_index+1, hexagon_index+1, count])
+                total_count += count
+    
 
+    data = np.array(matrix_data)[:, 2]
+    row_indices = np.array(matrix_data)[:, 0] - 1
+    col_indices = np.array(matrix_data)[:, 1] - 1
     print(f"Total matrix count: {total_count}")
     unique_hexagons = len(set(hexagon_names))
     print(f"Number of unique hexagons: {unique_hexagons}")
