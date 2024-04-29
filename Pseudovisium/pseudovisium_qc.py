@@ -20,10 +20,16 @@ from esda import Moran
 from adjustText import adjust_text
 from io import BytesIO
 import base64
+import warnings
+
+#throughout remove Warnings
+warnings.filterwarnings("ignore",category=FutureWarning)
 
 
+def generate_qc_report(folders, output_folder=os.getcwd(), gene_names=["RYR3", "AQP4", "THBS1"], include_morans_i=False,max_workers=4,normalisation=False,save_plots=False):
 
-def generate_qc_report(folders, output_folder="/Users/k23030440/", gene_names=["RYR3", "AQP4", "THBS1"], include_morans_i=False,max_workers=4,normalisation=False):
+    if save_plots:
+        print("Plots will be saved")
     #if any entry in folders lacks final /, then add
     folders = [folder if folder[-1]=="/" else folder + "/" for folder in folders]
     #same with output_folder
@@ -223,14 +229,40 @@ def generate_qc_report(folders, output_folder="/Users/k23030440/", gene_names=["
             plot_df_quality_per_probe = not_working_probe_based_on_quality(probe_quality, sample_id=dataset_name)
             replicate_data["probe_quality_stripplot_df"] = plot_df_quality_per_probe
 
+        replicate_data["cell_info"] = cell_info
+        replicate_data["quality_per_hexagon"] = quality_per_hexagon
+        replicate_data["quality_per_probe"] = quality_per_probe
         replicates_data.append(replicate_data)
 
-    html_code = generate_dashboard_html(replicates_data, gene_names, include_morans_i,quality_per_hexagon,quality_per_probe,cell_info,normalisation=normalisation)
+    #print how many of cell_info was true. If somewhere not True, print dataset name and suggest removal write out exactly which ones are not True
+    if not all([replicate_data["cell_info"] for replicate_data in replicates_data]):
+        print("""Warning: Some datasets lack cell info.
+        Consider removing these datasets from analysis: {}""".format([replicate_data["dataset_name"] for replicate_data in replicates_data if not replicate_data["cell_info"]]))
+        cell_info = False
+    if not all([replicate_data["quality_per_hexagon"] for replicate_data in replicates_data]):
+        print("""Warning: Some datasets lack quality per hexagon.
+        Consider removing these datasets from analysis: {}""".format([replicate_data["dataset_name"] for replicate_data in replicates_data if not replicate_data["quality_per_hexagon"]]))
+        quality_per_hexagon=False
+    if not all([replicate_data["quality_per_probe"] for replicate_data in replicates_data]):
+        print("""Warning: Some datasets lack quality per probe.
+        Consider removing these datasets from analysis: {}""".format([replicate_data["dataset_name"] for replicate_data in replicates_data if not replicate_data["quality_per_probe"]]))
+        quality_per_probe=False
+        
+
+
+
+    
 
     # Save HTML code to a file
-    with open(output_folder + "metrics_dashboard.html", "w", encoding="utf-8") as html_file:
-        html_file.write(html_code)
-        print("HTML file generated successfully!")
+    filename="qc_report_" + str(datetime.datetime.now().date()) + ".html"
+    #if output_folder + filename is used add a number
+    output = output_folder + filename
+    i=2
+    while output in os.listdir(output_folder):
+        output = output_folder + "qc_report_" + str(datetime.datetime.now().date()) + "_" + str(i) + ".html"
+        i+=1
+        
+    
     
     #in the same output folder generate a folder called pv_qc_ date
     data_output_folder = output_folder + "pv_qc_" + str(datetime.datetime.now().date())
@@ -261,9 +293,21 @@ def generate_qc_report(folders, output_folder="/Users/k23030440/", gene_names=["
     sum_stripplot = pd.concat([replicate_data["probe_sum_stripplot_df"] for replicate_data in replicates_data])
     sum_stripplot.to_csv(data_output_folder + "/sum_stripplot.csv", index=False)
 
+    html_code = generate_dashboard_html(replicates_data=replicates_data, gene_names=gene_names, include_morans_i=include_morans_i,
+    quality_per_hexagon=quality_per_hexagon,quality_per_probe=quality_per_probe,cell_info=cell_info,normalisation=normalisation,save_plots=save_plots,output_folder=data_output_folder)
+
+    with open(output, "w", encoding="utf-8") as html_file:
+        html_file.write(html_code)
+        print("HTML file generated successfully!")
+
+def generate_dashboard_html(replicates_data, gene_names, include_morans_i,quality_per_hexagon,quality_per_probe,cell_info,normalisation=False,save_plots=False,output_folder=os.getcwd()):
+    #AS A START PRINT VALUES OF include_morans_i, quality_per_hexagon etc.
+    print("include_morans_i: ",include_morans_i)
+    print("quality_per_hexagon: ",quality_per_hexagon)
+    print("quality_per_probe: ",quality_per_probe)
+    print("cell_info: ",cell_info)
 
 
-def generate_dashboard_html(replicates_data, gene_names, include_morans_i,quality_per_hexagon,quality_per_probe,cell_info,normalisation=False):
     metrics_html = """
         <div id="metric-details">
             <h2>Counts Table</h2>
@@ -581,7 +625,7 @@ def generate_dashboard_html(replicates_data, gene_names, include_morans_i,qualit
             if gene_name in replicate_data['features']['Gene_Name'].tolist():
                 gene_found = True
                 hexagon_df = get_df_for_gene(replicate_data['matrix_joined'], replicate_data['tissue_positions_list'], gene_name,normalisation)
-                hexagon_html = hexagon_plot_to_html(hexagon_df, replicate_data['hexagon_size'], replicate_data['image_pixels_per_um'], gene_name, replicate_data['dataset_name'])
+                hexagon_html = hexagon_plot_to_html(hexagon_df, replicate_data['hexagon_size'], replicate_data['image_pixels_per_um'], gene_name, replicate_data['dataset_name'], save_plot=save_plots, output_folder=output_folder)
                 hexagon_plots_html += f"""
                 <div class="col">
                     {hexagon_html}
@@ -612,7 +656,7 @@ def generate_dashboard_html(replicates_data, gene_names, include_morans_i,qualit
             <div class="row">
             """
         unique_features_per_hexagon = get_unique_features_per_hexagon(replicate_data['matrix_joined'])
-        hexagon_html = hexagon_plot_to_html(unique_features_per_hexagon, replicate_data['hexagon_size'], replicate_data['image_pixels_per_um'], "nFeature", replicate_data['dataset_name'],replicate_data['metrics_table_data']["Features Morans I"])
+        hexagon_html = hexagon_plot_to_html(unique_features_per_hexagon, replicate_data['hexagon_size'], replicate_data['image_pixels_per_um'], "nFeature", replicate_data['dataset_name'],replicate_data['metrics_table_data']["Features Morans I"], save_plot=save_plots, output_folder=output_folder)
         nfeature_hexagon_plots_html += f"""
         <div class="col">
             <h3>{replicate_data['dataset_name']}</h3>
@@ -623,16 +667,16 @@ def generate_dashboard_html(replicates_data, gene_names, include_morans_i,qualit
             nfeature_hexagon_plots_html += """
             </div>
             """
-
+    cell_density_hexagon_plots_html = ""
     if cell_info:
-        cell_density_hexagon_plots_html = ""
+        
         for i, replicate_data in enumerate(replicates_data):
             if i % 3 == 0:
                 cell_density_hexagon_plots_html += f"""
                 <div class="row">
                 """
             cell_density_df= replicate_data["cell_density_df"]
-            hexagon_html = hexagon_plot_to_html(cell_density_df, replicate_data['hexagon_size'], replicate_data['image_pixels_per_um'], "Density", replicate_data['dataset_name'],replicate_data['metrics_table_data']["Density (cells per hexagon) Morans I"])
+            hexagon_html = hexagon_plot_to_html(cell_density_df, replicate_data['hexagon_size'], replicate_data['image_pixels_per_um'], "Density", replicate_data['dataset_name'],replicate_data['metrics_table_data']["Density (cells per hexagon) Morans I"], save_plot=save_plots, output_folder=output_folder)
             cell_density_hexagon_plots_html += f"""
             <div class="col">
                 <h3>{replicate_data['dataset_name']}</h3>
@@ -646,16 +690,16 @@ def generate_dashboard_html(replicates_data, gene_names, include_morans_i,qualit
 
 
 
-
+    quality_hexagon_plots_html = ""
     if quality_per_hexagon:
-        quality_hexagon_plots_html = ""
+        
         for i, replicate_data in enumerate(replicates_data):
             if i % 3 == 0:
                 quality_hexagon_plots_html += f"""
                 <div class="row">
                 """
             hexagon_quality = get_quality_per_hexagon(replicate_data['matrix_joined'])
-            hexagon_html = hexagon_plot_to_html(hexagon_quality, replicate_data['hexagon_size'], replicate_data['image_pixels_per_um'], "Quality", replicate_data['dataset_name'],replicate_data['metrics_table_data']["Quality Morans I"])
+            hexagon_html = hexagon_plot_to_html(hexagon_quality, replicate_data['hexagon_size'], replicate_data['image_pixels_per_um'], "Quality", replicate_data['dataset_name'],replicate_data['metrics_table_data']["Quality Morans I"], save_plot=save_plots, output_folder=output_folder)
             quality_hexagon_plots_html += f"""
             <div class="col">
                 <h3>{replicate_data['dataset_name']}</h3>
@@ -676,7 +720,7 @@ def generate_dashboard_html(replicates_data, gene_names, include_morans_i,qualit
             <div class="row">
             """
         total_counts_per_hexagon = get_total_counts_per_hexagon(replicate_data['matrix_joined'])
-        hexagon_html = hexagon_plot_to_html(total_counts_per_hexagon, replicate_data['hexagon_size'], replicate_data['image_pixels_per_um'], "Total exp", replicate_data['dataset_name'],replicate_data['metrics_table_data']["Counts Morans I"])
+        hexagon_html = hexagon_plot_to_html(total_counts_per_hexagon, replicate_data['hexagon_size'], replicate_data['image_pixels_per_um'], "Total exp", replicate_data['dataset_name'],replicate_data['metrics_table_data']["Counts Morans I"], save_plot=save_plots, output_folder=output_folder)
         total_hexagon_plots_html += f"""
         <div class="col">
             <h3>{replicate_data['dataset_name']}</h3>
@@ -688,6 +732,11 @@ def generate_dashboard_html(replicates_data, gene_names, include_morans_i,qualit
             </div>
             """
 
+
+
+
+
+
     sums_comparison_html = ""
     pairs = [(i, j) for i in range(len(replicates_data)) for j in range(i + 1, len(replicates_data))]
     for i, (index1, index2) in enumerate(pairs):
@@ -697,7 +746,7 @@ def generate_dashboard_html(replicates_data, gene_names, include_morans_i,qualit
             """
         sums1 = get_probe_sums(replicates_data[index1]['matrix_joined'])
         sums2 = get_probe_sums(replicates_data[index2]['matrix_joined'])
-        sums_plot_html = plot_sums_to_html(sums1, sums2, replicates_data[index1]['dataset_name'], replicates_data[index2]['dataset_name'])
+        sums_plot_html = plot_sums_to_html(sums1, sums2, replicates_data[index1]['dataset_name'], replicates_data[index2]['dataset_name'], save_plot=save_plots, output_folder=output_folder)
         sums_comparison_html += f"""
         <div class="col">
             <h3>{replicates_data[index1]['dataset_name']} vs {replicates_data[index2]['dataset_name']}</h3>
@@ -709,66 +758,8 @@ def generate_dashboard_html(replicates_data, gene_names, include_morans_i,qualit
             </div>
             """
 
-    abundance_correlation_heatmap_html = plot_abundance_correlation_heatmap(replicates_data)
+    abundance_correlation_heatmap_html = plot_abundance_correlation_heatmap(replicates_data, save_plot=save_plots, output_folder=output_folder)
 
-    morans_i_comparison_html = ""
-    morans_i_heatmap_html = ""
-    morans_i_stripplot_html = ""
-    if include_morans_i:
-        pairs = [(i, j) for i in range(len(replicates_data)) for j in range(i + 1, len(replicates_data))]
-        for i, (index1, index2) in enumerate(pairs):
-            if i % 3 == 0:
-                morans_i_comparison_html += f"""
-                <div class="row">
-                """
-            morans_i1 = replicates_data[index1]['morans_i']
-            morans_i2 = replicates_data[index2]['morans_i']
-            morans_i_plot_html = plot_morans_i_to_html(morans_i1, morans_i2, replicates_data[index1]['dataset_name'], replicates_data[index2]['dataset_name'])
-            morans_i_comparison_html += f"""
-            <div class="col">
-                <h3>{replicates_data[index1]['dataset_name']} vs {replicates_data[index2]['dataset_name']}</h3>
-                {morans_i_plot_html}
-            </div>
-            """
-            if (i + 1) % 6 == 0 or i == len(pairs) - 1:
-                morans_i_comparison_html += """
-                </div>
-                """
-        morans_i_heatmap_html = plot_morans_i_correlation_heatmap(replicates_data)
-        for i, replicate_data in enumerate(replicates_data):
-            if i % 3 == 0:
-                morans_i_stripplot_html += f"""
-                <div class="row">
-                """
-            morans_i_stripplot_df = replicate_data['morans_i_stripplot_df']
-            morans_i_stripplot_html += f"""
-            <div class="col">
-                <h3>{replicate_data['dataset_name']}</h3>
-                {probe_stripplot(morans_i_stripplot_df, sample_id=replicate_data['dataset_name'],legend=True, col_to_plot="Morans_I")}
-            </div>
-            """
-            if (i + 1) % 3 == 0 or i == len(replicates_data) - 1:
-                morans_i_stripplot_html += """
-                </div>
-                """
-
-    sums_i_stripplot_html = ""
-    for i, replicate_data in enumerate(replicates_data):
-        if i % 3 == 0:
-            sums_i_stripplot_html += f"""
-            <div class="row">
-            """
-        plot_df = replicate_data['probe_sum_stripplot_df']
-        sums_i_stripplot_html += f"""
-        <div class="col">
-            <h3>{replicate_data['dataset_name']}</h3>
-            {probe_stripplot(plot_df, sample_id=replicate_data['dataset_name'],legend=True, col_to_plot="log_counts")}
-        </div>
-        """
-        if (i + 1) % 3 == 0 or i == len(replicates_data) - 1:
-            sums_i_stripplot_html += """
-            </div>
-            """
 
     quality_stripplot_html = ""
     if quality_per_probe:
@@ -788,6 +779,66 @@ def generate_dashboard_html(replicates_data, gene_names, include_morans_i,qualit
                 quality_stripplot_html += """
                 </div>
                 """
+
+    morans_i_comparison_html = ""
+    morans_i_heatmap_html = ""
+    morans_i_stripplot_html = ""
+    if include_morans_i:
+        pairs = [(i, j) for i in range(len(replicates_data)) for j in range(i + 1, len(replicates_data))]
+        for i, (index1, index2) in enumerate(pairs):
+            if i % 3 == 0:
+                morans_i_comparison_html += f"""
+                <div class="row">
+                """
+            morans_i1 = replicates_data[index1]['morans_i']
+            morans_i2 = replicates_data[index2]['morans_i']
+            morans_i_plot_html = plot_morans_i_to_html(morans_i1, morans_i2, replicates_data[index1]['dataset_name'], replicates_data[index2]['dataset_name'], save_plot=save_plots, output_folder=output_folder)
+            morans_i_comparison_html += f"""
+            <div class="col">
+                <h3>{replicates_data[index1]['dataset_name']} vs {replicates_data[index2]['dataset_name']}</h3>
+                {morans_i_plot_html}
+            </div>
+            """
+            if (i + 1) % 3 == 0 or i == len(pairs) - 1:
+                morans_i_comparison_html += """
+                </div>
+                """
+        morans_i_heatmap_html = plot_morans_i_correlation_heatmap(replicates_data, save_plot=save_plots, output_folder=output_folder)
+        for i, replicate_data in enumerate(replicates_data):
+            if i % 3 == 0:
+                morans_i_stripplot_html += f"""
+                <div class="row">
+                """
+            morans_i_stripplot_df = replicate_data['morans_i_stripplot_df']
+            morans_i_stripplot_html += f"""
+            <div class="col">
+                <h3>{replicate_data['dataset_name']}</h3>
+                {probe_stripplot(morans_i_stripplot_df, sample_id=replicate_data['dataset_name'],legend=True, col_to_plot="Morans_I", save_plot=save_plots, output_folder=output_folder)}
+            </div>
+            """
+            if (i + 1) % 3 == 0 or i == len(replicates_data) - 1:
+                morans_i_stripplot_html += """
+                </div>
+                """
+
+    sums_i_stripplot_html = ""
+    for i, replicate_data in enumerate(replicates_data):
+        if i % 3 == 0:
+            sums_i_stripplot_html += f"""
+            <div class="row">
+            """
+        plot_df = replicate_data['probe_sum_stripplot_df']
+        sums_i_stripplot_html += f"""
+        <div class="col">
+            <h3>{replicate_data['dataset_name']}</h3>
+            {probe_stripplot(plot_df, sample_id=replicate_data['dataset_name'],legend=True, col_to_plot="log_counts", save_plot=save_plots, output_folder=output_folder)}
+        </div>
+        """
+        if (i + 1) % 3 == 0 or i == len(replicates_data) - 1:
+            sums_i_stripplot_html += """
+            </div>
+            """
+
 
     html_code = f"""
     <!DOCTYPE html>
@@ -882,15 +933,16 @@ def generate_dashboard_html(replicates_data, gene_names, include_morans_i,qualit
             <div id="total_hexagon_plots" class="plot-container">
                 {total_hexagon_plots_html}
             </div>
-            <div id="morans-i-comparison" class="plot-container">
-                {morans_i_comparison_html}
-            </div>
             <div id="probe_quality_stripplot" class="plot-container">
                 {quality_stripplot_html}
             </div>
             <div id="cell_density_hexagon_plots" class="plot-container">
                 {cell_density_hexagon_plots_html}
             </div>
+            <div id="morans-i-comparison" class="plot-container">
+                {morans_i_comparison_html}
+            </div>
+            
         </div>
 
         <script>
@@ -905,9 +957,9 @@ def generate_dashboard_html(replicates_data, gene_names, include_morans_i,qualit
             const nfeatureHexagonContainer = document.getElementById('nfeature_hexagon_plots');
             const qualityHexagonContainer = document.getElementById('quality_hexagon_plots');
             const totalHexagonContainer = document.getElementById('total_hexagon_plots');
-            const moransIComparisonContainer = document.getElementById('morans-i-comparison');
             const probeQualityStripplotContainer = document.getElementById('probe_quality_stripplot');
             const cellDensityHexagonContainer = document.getElementById('cell_density_hexagon_plots');
+            const moransIComparisonContainer = document.getElementById('morans-i-comparison');
 
 
             function updateMetricDetails() {{
@@ -944,11 +996,9 @@ def generate_dashboard_html(replicates_data, gene_names, include_morans_i,qualit
                     totalHexagonContainer.style.display = 'block';
                 }} else if (selectedMetric === 'morans-i-comparison') {{
                     moransIComparisonContainer.style.display = 'block';
-                }}
-                else if (selectedMetric === 'probe_quality_stripplot') {{
+                }} else if (selectedMetric === 'probe_quality_stripplot') {{
                     probeQualityStripplotContainer.style.display = 'block';
-                }}
-                else if (selectedMetric === 'cell_density_hexagon_plots') {{
+                }} else if (selectedMetric === 'cell_density_hexagon_plots') {{
                     cellDensityHexagonContainer.style.display = 'block';
                 }}
 
@@ -1000,7 +1050,7 @@ def not_working_probe_based_on_sum(matrix_joined,sample_id="Sample1"):
 
 
 
-def probe_stripplot(plot_df, col_to_plot="log_counts", sample_id="Sample 1", legend=False):
+def probe_stripplot(plot_df, col_to_plot="log_counts", sample_id="Sample 1", legend=False,save_plot=False,output_folder=None):
     fig, ax = plt.subplots(figsize=(2, 2.5))
     # Define jitter amount
     jitter = 0.1
@@ -1052,13 +1102,21 @@ def probe_stripplot(plot_df, col_to_plot="log_counts", sample_id="Sample 1", leg
     if legend:
         ax.legend(fontsize='small', loc='upper left', bbox_to_anchor=(1, 1))
 
-    # Convert the plot to HTML
+
+        # Convert the plot to HTML
     img_buffer = BytesIO()
     fig.savefig(img_buffer, format='png', bbox_inches='tight')
     img_str = base64.b64encode(img_buffer.getvalue()).decode()
     html_fig = f'<img src="data:image/png;base64,{img_str}"/>'
-
+    if save_plot:
+        #save as png and svg at 400 dpi to output_folder
+        plt.savefig(f"{output_folder}/{sample_id}_probe_stripplot.png", dpi=400)
+        plt.savefig(f"{output_folder}/{sample_id}_probe_stripplot.svg", dpi=400)
     plt.close(fig)
+
+
+
+        
     return html_fig
 
 def not_working_probe_based_on_quality(probe_quality, sample_id="Sample1"):
@@ -1159,7 +1217,7 @@ def get_df_for_gene(matrix_joined, tissue_positions_list, gene_name, normalised=
 
 
 
-def hexagon_plot_to_html(hexagon_df, hexagon_size, image_pixels_per_um, gene_name, dataset_name,morans_i=None):
+def hexagon_plot_to_html(hexagon_df, hexagon_size, image_pixels_per_um, gene_name, dataset_name,morans_i=None,save_plot=False,output_folder=None):
     fig, ax = plt.subplots(figsize=(3, 2.5))
     sc = ax.scatter(hexagon_df["x"], hexagon_df["y"], c=hexagon_df["counts"], cmap="viridis", s=2, alpha=0.6)
     for hx, hy in zip(hexagon_df["x"], hexagon_df["y"]):
@@ -1187,6 +1245,10 @@ def hexagon_plot_to_html(hexagon_df, hexagon_size, image_pixels_per_um, gene_nam
     fig.savefig(img_buffer, format='png')
     img_str = base64.b64encode(img_buffer.getvalue()).decode()
     html_fig = f'<img src="data:image/png;base64,{img_str}"/>'
+    if save_plot:
+        #save as png and svg at 400 dpi to output_folder
+        plt.savefig(f"{output_folder}/{dataset_name}_{gene_name}_hexagon_plot.png", dpi=400)
+        plt.savefig(f"{output_folder}/{dataset_name}_{gene_name}_hexagon_plot.svg", dpi=400)
 
     plt.close(fig)  # Close the plot to free memory
 
@@ -1202,7 +1264,7 @@ def get_probe_sums(matrix_joined):
     return sums
 
 
-def plot_sums_to_html(sums1, sums2, dataset1_name, dataset2_name):
+def plot_sums_to_html(sums1, sums2, dataset1_name, dataset2_name,save_plot=False,output_folder=None):
     common_probes = list(set(sums1["Gene_ID_y"]) & set(sums2["Gene_ID_y"]))
 
     if len(common_probes) < 20:
@@ -1255,13 +1317,18 @@ def plot_sums_to_html(sums1, sums2, dataset1_name, dataset2_name):
         img_str = base64.b64encode(img_buffer.getvalue()).decode()
         html_fig = f'<img src="data:image/png;base64,{img_str}"/>'
 
+        if save_plot:
+            #save as png and svg at 400 dpi to output_folder
+            plt.savefig(f"{output_folder}/{dataset1_name}_{dataset2_name}_sums_comparison.png", dpi=400)
+            plt.savefig(f"{output_folder}/{dataset1_name}_{dataset2_name}_sums_comparison.svg", dpi=400)
+
         plt.close(fig)  # Close the plot to free memory
 
         return html_fig
 
 
 
-def plot_abundance_correlation_heatmap(replicates_data):
+def plot_abundance_correlation_heatmap(replicates_data,save_plot=False,output_folder=None):
     # Calculate the sums of features for each replicate
     sums_data = []
     replicate_names = []
@@ -1293,7 +1360,7 @@ def plot_abundance_correlation_heatmap(replicates_data):
     # Make diagonal 1
     np.fill_diagonal(corr_matrix.values, 1)
     
-    fig_dimension = len(replicates_data)
+    fig_dimension = max(len(replicates_data), 4)
     clustermap = sns.clustermap(corr_matrix, cmap='coolwarm', annot=True, fmt='.2f', figsize=(fig_dimension, fig_dimension))
 
     # Convert the plot to HTML
@@ -1301,6 +1368,10 @@ def plot_abundance_correlation_heatmap(replicates_data):
     clustermap.savefig(img_buffer, format='png')
     img_str = base64.b64encode(img_buffer.getvalue()).decode()
     html_fig = f'<img src="data:image/png;base64,{img_str}"/>'
+    if save_plot:
+        #save as png and svg at 400 dpi to output_folder
+        clustermap.savefig(f"{output_folder}/abundance_correlation_heatmap.png", dpi=400)
+        clustermap.savefig(f"{output_folder}/abundance_correlation_heatmap.svg", dpi=400)
 
     plt.close(clustermap.figure)
     return html_fig
@@ -1337,12 +1408,15 @@ def process_gene(gene, matrix_joined, tissue_positions_list):
     return {"gene": gene, "Morans_I": mi.I}
 
 def get_morans_i(gene_name, matrix_joined, tissue_positions_list, max_workers=4):
+
     if gene_name == "all":
         unique_genes = matrix_joined["Gene_ID_y"].unique()
         #remove those unique genes which have less than total 100 counts
         #lowly_expressed_genes = matrix_joined.groupby("Gene_ID_y")["Counts"].sum()
         #lowly_expressed_genes = lowly_expressed_genes[lowly_expressed_genes<100].index.values
         unique_genes = [gene for gene in unique_genes] #if gene not in lowly_expressed_genes]
+        #Commencing Moran's I calculation with max_workers workers
+        print(f"Calculating Moran's I for {len(unique_genes)} genes, using the following number of workers: {max_workers}")
         with ProcessPoolExecutor(max_workers=max_workers) as executor:
             results = list(tqdm(executor.map(process_gene, unique_genes, [matrix_joined]*len(unique_genes), [tissue_positions_list]*len(unique_genes)), total=len(unique_genes), desc="Processing genes"))
         
@@ -1351,6 +1425,8 @@ def get_morans_i(gene_name, matrix_joined, tissue_positions_list, max_workers=4)
         #res_df = pd.concat([res_df,pd.DataFrame({"gene":lowly_expressed_genes,"Morans_I":0})],axis=0)
         
         return res_df
+    
+    #suppress warnings
     
     elif gene_name == "features":
         mat = matrix_joined.groupby("Barcode_ID").count()
@@ -1405,7 +1481,7 @@ def get_morans_i(gene_name, matrix_joined, tissue_positions_list, max_workers=4)
 
 
 
-def plot_morans_i_to_html(morans_i1, morans_i2, dataset1_name, dataset2_name):
+def plot_morans_i_to_html(morans_i1, morans_i2, dataset1_name, dataset2_name,save_plot=False,output_folder=None):
     common_probes = list(set(morans_i1["gene"]) & set(morans_i2["gene"]))
     if len(common_probes) < 20:
         fig, ax = plt.subplots(figsize=(4, 4))
@@ -1451,12 +1527,18 @@ def plot_morans_i_to_html(morans_i1, morans_i2, dataset1_name, dataset2_name):
         img_str = base64.b64encode(img_buffer.getvalue()).decode()
         html_fig = f'<img src="data:image/png;base64,{img_str}"/>'
 
+        if save_plot:
+            #save as png and svg at 400 dpi to output_folder
+            plt.savefig(f"{output_folder}/{dataset1_name}_{dataset2_name}_morans_i_comparison.png", dpi=400)
+            plt.savefig(f"{output_folder}/{dataset1_name}_{dataset2_name}_morans_i_comparison.svg", dpi=400)
+
+
         plt.close(fig)  # Close the plot to free memory
 
         return html_fig
 
 
-def plot_morans_i_correlation_heatmap(replicates_data):
+def plot_morans_i_correlation_heatmap(replicates_data, save_plot=False,output_folder=None):
     #get the morans i for each dataset
     morans_i_data = []
     replicate_names = []
@@ -1484,7 +1566,7 @@ def plot_morans_i_correlation_heatmap(replicates_data):
 
     #make diagonal 1
     np.fill_diagonal(corr_matrix.values, 1)
-    fig_dimension = len(replicates_data) 
+    fig_dimension = max(len(replicates_data), 4)
     clustermap = sns.clustermap(corr_matrix, cmap='coolwarm', annot=True, fmt='.2f', figsize=(fig_dimension, fig_dimension))
 
     # Convert the plot to HTML
@@ -1492,6 +1574,11 @@ def plot_morans_i_correlation_heatmap(replicates_data):
     clustermap.savefig(img_buffer, format='png')
     img_str = base64.b64encode(img_buffer.getvalue()).decode()
     html_fig = f'<img src="data:image/png;base64,{img_str}"/>'
+
+    if save_plot:
+        #save as png and svg at 400 dpi to output_folder
+        clustermap.savefig(f"{output_folder}/morans_i_correlation_heatmap.png", dpi=400)
+        clustermap.savefig(f"{output_folder}/morans_i_correlation_heatmap.svg", dpi=400)
 
     plt.close(clustermap.figure)
     return html_fig
@@ -1506,10 +1593,11 @@ def main():
     parser.add_argument("--include_morans_i", "-m", action="store_true", help="Include Moran's I features tab")
     parser.add_argument("-max_workers", "--mw", type=int, default=4, help="Number of workers to use for parallel processing")
     parser.add_argument("-normalisation","--n",action="store_true",help="Normalise the counts by the total counts per cell")
+    parser.add_argument("--save_plots","-sp",action="store_true",help="Save generate plot as publication ready figures.")
 
     args = parser.parse_args()
 
-    generate_qc_report(args.folders, args.output_folder, args.gene_names, args.include_morans_i, max_workers=args.mw,normalisation=args.n)
+    generate_qc_report(args.folders, args.output_folder, args.gene_names, args.include_morans_i, max_workers=args.mw,normalisation=args.n,save_plots=args.save_plots)
 
 
 if __name__ == "__main__":
