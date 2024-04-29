@@ -281,19 +281,6 @@ def process_batch(batch_file, hexagon_size, feature_colname, x_colname, y_colnam
 
 
 
-    
-
-
-def process_batch_hexagons(batch,hexagon_counts,hexagon_names,features):
-        batch_matrix_data = []
-        for hexagon in batch:
-            count_dict = hexagon_counts.get(hexagon, {})
-            hexagon_index = hexagon_names.index(hexagon)
-            for feature, count in count_dict.items():
-                feature_index = features.index(feature)
-                batch_matrix_data.append([feature_index+1, hexagon_index+1, count])
-        return batch_matrix_data
-
 
 def write_10X_h5(adata, file):
     """Writes adata to a 10X-formatted h5 file.
@@ -542,12 +529,13 @@ def process_hexagon(hexagon, hexagon_index, features, hexagon_counts):
         return [[features.index(feature) + 1, hexagon_index + 1, count]
                 for feature, count in hexagon_counts[hexagon].items()]
 
-def hex_to_rows(hexagon_batch, start_index, features, hexagon_counts):
+def hex_to_rows(hexagon_batch, start_index, features, hexagon_counts,hexagon_names):
     matrix_data = []
-    for hexagon_index, hexagon in enumerate(hexagon_batch, start=start_index): ###Here is the error!!! HExagon indices are scrambled!!!!!
+    for hexagon in hexagon_batch: ###Here is the error!!! HExagon indices are scrambled!!!!!
         count_dict = hexagon_counts.get(hexagon, {})
         for feature, count in count_dict.items():
             feature_index = features.index(feature)
+            hexagon_index = hexagon_names.index(hexagon)
             matrix_data.append([feature_index + 1, hexagon_index + 1, count])
     print(f"Batch total count: {sum(row[2] for row in matrix_data)}")
     return matrix_data
@@ -699,20 +687,24 @@ def create_pseudovisium(path,hexagon_counts,hexagon_cell_counts,hexagon_quality,
     n_total_hexagons = len(ordered_hexagon_counts)
 
     total_count = 0
-    matrix_data = []
+    n_processes = min(max_workers, multiprocessing.cpu_count())
+    batch_size_n_hexagons = n_total_hexagons // (n_processes * 4)
+    print(f"Using {n_processes} processes")
+    print(f"Processing {n_total_hexagons} hexagons in batches of {batch_size_n_hexagons} hexagons")
+    with concurrent.futures.ProcessPoolExecutor(max_workers=n_processes) as executor:
+        futures = []
+        for i in range(0, n_total_hexagons, batch_size_n_hexagons):
+            hexagon_batch = hexagon_names[i:i + batch_size_n_hexagons]
+            future = executor.submit(hex_to_rows, hexagon_batch, i, features, ordered_hexagon_counts,hexagon_names)
+            futures.append(future)
 
-    for hexagon, count_dict in hexagon_counts.items():
-        if sum(count_dict.values()) > 0:
-            hexagon_index = hexagon_names.index(hexagon)
-            for feature, count in count_dict.items():
-                feature_index = features.index(feature)
-                matrix_data.append([feature_index+1, hexagon_index+1, count])
-                total_count += count
-    
+        with tqdm(total=len(futures), desc="Processing batches") as pbar:
+            for future in concurrent.futures.as_completed(futures):
+                batch_matrix_data = future.result()
+                matrix_data.extend(batch_matrix_data)
+                total_count += sum(row[2] for row in batch_matrix_data)
+                pbar.update(1)
 
-    data = np.array(matrix_data)[:, 2]
-    row_indices = np.array(matrix_data)[:, 0] - 1
-    col_indices = np.array(matrix_data)[:, 1] - 1
     print(f"Total matrix count: {total_count}")
     unique_hexagons = len(set(hexagon_names))
     print(f"Number of unique hexagons: {unique_hexagons}")
@@ -1073,7 +1065,7 @@ def main():
     parser.add_argument("--alignment_matrix_file", "-am", type=str, help="Alignment matrix file path", default=None)
     parser.add_argument("--batch_size", "-b", type=int, help="Batch size", default=1000000)
     parser.add_argument("--project_name", "-p", type=str, help="Project name", default='project')
-    parser.add_argument("--image_pixels_per_um", "-ppu", type=float, help="Image pixels per um", default=1/0.2125)#change!
+    parser.add_argument("--image_pixels_per_um", "-ppu", type=float, help="Image pixels per um", default=1)#changed from 1/0.2125 that was set for Xenium
     parser.add_argument("--tissue_hires_scalef", "-ths", type=float, help="Tissue hires scale factor", default=0.2)
     parser.add_argument("--technology", "-t", type=str, help="Technology", default="Xenium")
     parser.add_argument("--feature_colname", "-fc", type=str, help="Feature column name", default="feature_name")
