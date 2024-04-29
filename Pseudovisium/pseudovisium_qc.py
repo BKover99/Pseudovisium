@@ -272,6 +272,8 @@ def generate_qc_report(folders, output_folder=os.getcwd(), gene_names=["RYR3", "
         data_output_folder = output_folder + "pv_qc_" + str(datetime.datetime.now().date()) + "_" + str(i)
         i+=1
     os.mkdir(data_output_folder)
+    #also make a /plots folder in it
+    os.mkdir(data_output_folder + "/plots")
 
     #save the metrics table as a csv
     metrics_table = pd.DataFrame([replicate_data["metrics_table_data"] for replicate_data in replicates_data])
@@ -294,7 +296,7 @@ def generate_qc_report(folders, output_folder=os.getcwd(), gene_names=["RYR3", "
     sum_stripplot.to_csv(data_output_folder + "/sum_stripplot.csv", index=False)
 
     html_code = generate_dashboard_html(replicates_data=replicates_data, gene_names=gene_names, include_morans_i=include_morans_i,
-    quality_per_hexagon=quality_per_hexagon,quality_per_probe=quality_per_probe,cell_info=cell_info,normalisation=normalisation,save_plots=save_plots,output_folder=data_output_folder)
+    quality_per_hexagon=quality_per_hexagon,quality_per_probe=quality_per_probe,cell_info=cell_info,normalisation=normalisation,save_plots=save_plots,output_folder=data_output_folder + "/plots")
 
     with open(output, "w", encoding="utf-8") as html_file:
         html_file.write(html_code)
@@ -1069,7 +1071,7 @@ def probe_stripplot(plot_df, col_to_plot="log_counts", sample_id="Sample 1", leg
         points["index"].append(index)
 
     # Plot the points for each category
-    for cat in [ "Good", "Bad","Neg_control"]:
+    for cat in [ "Good", "Neg_control", "Bad"]:
         mask = [c == cat for c in points["cat"]]
         ax.scatter([x for x, m in zip(points["x"], mask) if m],
                    [y for y, m in zip(points["y"], mask) if m],
@@ -1113,9 +1115,6 @@ def probe_stripplot(plot_df, col_to_plot="log_counts", sample_id="Sample 1", leg
         plt.savefig(f"{output_folder}/{sample_id}_probe_stripplot.png", dpi=400)
         plt.savefig(f"{output_folder}/{sample_id}_probe_stripplot.svg", dpi=400)
     plt.close(fig)
-
-
-
         
     return html_fig
 

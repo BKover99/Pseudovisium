@@ -76,6 +76,26 @@ def closest_hex(x,y,hexagon_size):
     return closest
 
 
+def closest_spot(x,y,spot_diameter=55,spot_dist=100):
+    if spot_dist<spot_diameter:
+        raise ValueError("Spot distance cannot be larger than spot size")
+    
+    y_ = y // spot_dist
+    if y_ % 2 == 1:
+        x_ = (x+spot_dist*0.5) // spot_dist
+        xc=x_*spot_diameter
+        yc=(y_+0.5)*spot_diameter
+    elif y_ % 2 ==0:
+        x_ = x // spot_dist
+        xc=(x_+0.5)*spot_diameter
+        yc=(y_+0.5)*spot_diameter
+    
+    #calc dist between x,y and xc,yc. if less than half of spot_diameter, return xc,yc
+    if math.sqrt((x-xc)**2 + (y-yc)**2) < spot_diameter/2:
+        return (xc,yc)
+
+
+    
 
 
 def preprocess_csv(csv_file, batch_size, fieldnames):
@@ -146,7 +166,7 @@ def preprocess_csv(csv_file, batch_size, fieldnames):
 
 
 
-def process_batch(batch_file, hexagon_size, feature_colname, x_colname, y_colname, cell_id_colname, quality_colname=None, quality_filter=False, count_colname="NA",smoothing=False, quality_per_hexagon=False, quality_per_probe=False,move_x=0,move_y=0,coord_to_um_conversion=1):
+def process_batch(batch_file, hexagon_size, feature_colname, x_colname, y_colname, cell_id_colname, quality_colname=None, quality_filter=False, count_colname="NA",smoothing=False, quality_per_hexagon=False, quality_per_probe=False,move_x=0,move_y=0,coord_to_um_conversion=1,spot=False,spot_diameter,spot_dist):
     """
     process_batch(batch_file, hexagon_size, feature_colname, x_colname, y_colname, cell_id_colname, quality_colname=None, quality_filter=False, count_colname="NA", smoothing=False)
     Processes a batch CSV file to calculate hexagon counts and cell counts.
@@ -186,7 +206,10 @@ def process_batch(batch_file, hexagon_size, feature_colname, x_colname, y_colnam
                 try:
                     x = (float(row[x_colname]) + move_x)*coord_to_um_conversion
                     y = (float(row[y_colname]) + move_y)*coord_to_um_conversion
-                    closest_hexagon = closest_hex(x, y, hexagon_size)
+                    if spot:
+                        closest_hexagon = closest_spot(x, y, spot_diameter, spot_dist)
+                    else:
+                        closest_hexagon = closest_hex(x, y, hexagon_size)
                     if quality_per_hexagon==True:
                         if closest_hexagon not in hexagon_quality:
                             hexagon_quality[closest_hexagon] = {"mean":float(row[quality_colname]),"count":1}
@@ -230,7 +253,10 @@ def process_batch(batch_file, hexagon_size, feature_colname, x_colname, y_colnam
                         x = float(row[x_colname])+move_x
                         y = float(row[y_colname])+move_y
                         for x_new,y_new in [(x+smoothing,y+smoothing),(x-smoothing,y-smoothing),(x-smoothing,y+smoothing),(x+smoothing,y-smoothing)]:
-                            closest_hexagon = closest_hex(x_new, y_new, hexagon_size)
+                            if spot:
+                                closest_hexagon = closest_spot(x, y, spot_diameter, spot_dist)
+                            else:
+                                closest_hexagon = closest_hex(x, y, hexagon_size)
                             if closest_hexagon not in hexagon_counts:
                                 hexagon_counts[closest_hexagon] = {}
                             if row[feature_colname] not in hexagon_counts[closest_hexagon]:
@@ -254,7 +280,10 @@ def process_batch(batch_file, hexagon_size, feature_colname, x_colname, y_colnam
                     try:
                         x = float(row[x_colname])+move_x
                         y = float(row[y_colname])+move_y
-                        closest_hexagon = closest_hex(x, y, hexagon_size)
+                        if spot:
+                            closest_hexagon = closest_spot(x, y, spot_diameter, spot_dist)
+                        else:
+                            closest_hexagon = closest_hex(x, y, hexagon_size)
                         if closest_hexagon not in hexagon_counts:
                             hexagon_counts[closest_hexagon] = {}
                         if row[feature_colname] not in hexagon_counts[closest_hexagon]:
