@@ -21,7 +21,7 @@ import h5py
 import scipy.sparse
 from pathlib import Path
 
-def closest_hex(x,y,hexagon_size):
+def closest_hex(x,y,hexagon_size,spot_diameter=None):
     """
     closest_hex(x, y, hexagon_size)
     Calculates the closest hexagon centroid to the given (x, y) coordinates.
@@ -34,6 +34,7 @@ def closest_hex(x,y,hexagon_size):
     Returns:
         tuple: The closest hexagon centroid coordinates (x, y) rounded to the nearest integer.
     """
+    spot = True if spot_diameter!=None else False
 
     x_ = x // (hexagon_size*2)
     y_= y // (hexagon_size*1.732050807)
@@ -71,31 +72,17 @@ def closest_hex(x,y,hexagon_size):
         distance_2 = math.sqrt((x - option_2_hexagon[0])**2 + (y - option_2_hexagon[1])**2)
         distance_3 = math.sqrt((x - option_3_hexagon[0])**2 + (y - option_3_hexagon[1])**2)
         closest = [option_1_hexagon,option_2_hexagon,option_3_hexagon][np.argmin([distance_1,distance_2,distance_3])]
-
-    closest = (round(closest[0], 0), round(closest[1], 1))
-    return closest
-
-
-def closest_spot(x,y,spot_diameter=55,spot_dist=100):
-    if spot_dist<spot_diameter:
-        raise ValueError("Spot distance cannot be larger than spot size")
     
-    y_ = y // spot_dist
-    if y_ % 2 == 1:
-        x_ = (x+spot_dist*0.5) // spot_dist
-        xc=x_*spot_diameter
-        yc=(y_+0.5)*spot_diameter
-    elif y_ % 2 ==0:
-        x_ = x // spot_dist
-        xc=(x_+0.5)*spot_diameter
-        yc=(y_+0.5)*spot_diameter
-    
-    #calc dist between x,y and xc,yc. if less than half of spot_diameter, return xc,yc
-    if math.sqrt((x-xc)**2 + (y-yc)**2) < spot_diameter/2:
-        return (xc,yc)
+        closest = (round(closest[0], 0), round(closest[1], 1))
+    if spot:
+        if math.sqrt((x-closest[0])**2 + (y-closest[1])**2) < spot_diameter/2:
+            return closest
+        else:
+            return -1
+    else:
+        return closest
 
 
-    
 
 
 def preprocess_csv(csv_file, batch_size, fieldnames):
@@ -166,7 +153,7 @@ def preprocess_csv(csv_file, batch_size, fieldnames):
 
 
 
-def process_batch(batch_file, hexagon_size, feature_colname, x_colname, y_colname, cell_id_colname, quality_colname=None, quality_filter=False, count_colname="NA",smoothing=False, quality_per_hexagon=False, quality_per_probe=False,move_x=0,move_y=0,coord_to_um_conversion=1,spot=False,spot_diameter,spot_dist):
+def process_batch(batch_file, hexagon_size, feature_colname, x_colname, y_colname, cell_id_colname, quality_colname=None, quality_filter=False, count_colname="NA",smoothing=False, quality_per_hexagon=False, quality_per_probe=False,move_x=0,move_y=0,coord_to_um_conversion=1,spot_diameter=None):
     """
     process_batch(batch_file, hexagon_size, feature_colname, x_colname, y_colname, cell_id_colname, quality_colname=None, quality_filter=False, count_colname="NA", smoothing=False)
     Processes a batch CSV file to calculate hexagon counts and cell counts.
@@ -188,7 +175,9 @@ def process_batch(batch_file, hexagon_size, feature_colname, x_colname, y_colnam
                     Otherwise, returns the hexagon counts dictionary.
 
     """
-    
+    spot = True if spot_diameter!=None else False
+
+
     hexagon_counts = {}
     if cell_id_colname != "None":
         hexagon_cell_counts = {}
@@ -207,7 +196,9 @@ def process_batch(batch_file, hexagon_size, feature_colname, x_colname, y_colnam
                     x = (float(row[x_colname]) + move_x)*coord_to_um_conversion
                     y = (float(row[y_colname]) + move_y)*coord_to_um_conversion
                     if spot:
-                        closest_hexagon = closest_spot(x, y, spot_diameter, spot_dist)
+                        closest_hexagon = closest_hex(x, y, hexagon_size, spot_diameter)
+                        if closest_hexagon == -1:
+                            continue
                     else:
                         closest_hexagon = closest_hex(x, y, hexagon_size)
                     if quality_per_hexagon==True:
@@ -254,9 +245,11 @@ def process_batch(batch_file, hexagon_size, feature_colname, x_colname, y_colnam
                         y = float(row[y_colname])+move_y
                         for x_new,y_new in [(x+smoothing,y+smoothing),(x-smoothing,y-smoothing),(x-smoothing,y+smoothing),(x+smoothing,y-smoothing)]:
                             if spot:
-                                closest_hexagon = closest_spot(x, y, spot_diameter, spot_dist)
+                                closest_hexagon = closest_hex(x_new, y_new, hexagon_size, spot_diameter)
+                                if closest_hexagon == -1:
+                                    continue
                             else:
-                                closest_hexagon = closest_hex(x, y, hexagon_size)
+                                closest_hexagon = closest_hex(x_new, y_new, hexagon_size)
                             if closest_hexagon not in hexagon_counts:
                                 hexagon_counts[closest_hexagon] = {}
                             if row[feature_colname] not in hexagon_counts[closest_hexagon]:
@@ -281,9 +274,11 @@ def process_batch(batch_file, hexagon_size, feature_colname, x_colname, y_colnam
                         x = float(row[x_colname])+move_x
                         y = float(row[y_colname])+move_y
                         if spot:
-                            closest_hexagon = closest_spot(x, y, spot_diameter, spot_dist)
-                        else:
-                            closest_hexagon = closest_hex(x, y, hexagon_size)
+                            closest_hexagon = closest_hex(x,y, hexagon_size, spot_diameter)
+                            if closest_hexagon == -1:
+                                continue
+                            else:
+                                closest_hexagon = closest_hex(x,y, hexagon_size)
                         if closest_hexagon not in hexagon_counts:
                             hexagon_counts[closest_hexagon] = {}
                         if row[feature_colname] not in hexagon_counts[closest_hexagon]:
@@ -363,11 +358,9 @@ def write_10X_h5(adata, file):
     
     w.close()
 
-    
-
 
 def process_csv_file(csv_file, hexagon_size, batch_size=1000000, technology="Xenium", feature_colname="feature_name", x_colname="x_location", y_colname="y_location", cell_id_colname="None", quality_colname="qv", max_workers=min(2, multiprocessing.cpu_count()),
-                     quality_filter=False, count_colname="NA",smoothing=False,quality_per_hexagon=False,quality_per_probe=False,h5_x_colname="x",h5_y_colname="y",move_x=0,move_y=0,coord_to_um_conversion=1):
+                     quality_filter=False, count_colname="NA",smoothing=False,quality_per_hexagon=False,quality_per_probe=False,h5_x_colname="x",h5_y_colname="y",move_x=0,move_y=0,coord_to_um_conversion=1,spot_diameter=None):
     """
     process_csv_file(csv_file, hexagon_size, field_size, batch_size=1000000, technology="Xenium", feature_colname="feature_name", x_colname="x_location", y_colname="y_location", cell_id_colname="None", quality_colname="qv", max_workers=min(2, multiprocessing.cpu_count()), quality_filter=False, count_colname="NA", smoothing=False)
     Processes a CSV file to calculate hexagon counts and cell counts using parallel processing.
@@ -395,6 +388,9 @@ def process_csv_file(csv_file, hexagon_size, batch_size=1000000, technology="Xen
     print(f"Quality filter is set to {quality_filter}")
     print(f"Quality counting per hexagon is set to {quality_per_hexagon}")
     print(f"Quality counting per probe is set to {quality_per_probe}")
+    spot = True if spot_diameter!=None else False
+    if spot:
+        print("Visium-like spots are going to be used rather than hexagonal tesselation!!!")
 
     hexagon_counts = {}
     hexagon_cell_counts = {}
@@ -431,6 +427,8 @@ def process_csv_file(csv_file, hexagon_size, batch_size=1000000, technology="Xen
         coord_to_um_conversion = 0.12028
         #see ref https://smi-public.objects.liquidweb.services/cosmx-wtx/Pancreas-CosMx-ReadMe.html
         #https://nanostring.com/wp-content/uploads/2023/09/SMI-ReadMe-BETA_humanBrainRelease.html
+        #Whereas old smi output seems to be 0.18 
+        # https://nanostring-public-share.s3.us-west-2.amazonaws.com/SMI-Compressed/SMI-ReadMe.html
 
 
     elif technology == "Visium_HD":
@@ -479,7 +477,7 @@ def process_csv_file(csv_file, hexagon_size, batch_size=1000000, technology="Xen
     n_process = min(max_workers, multiprocessing.cpu_count())
     print(f"Processing batches using {n_process} processes")
     with concurrent.futures.ProcessPoolExecutor(max_workers=n_process) as executor:
-        futures = [executor.submit(process_batch, batch_file, hexagon_size, feature_colname, x_colname, y_colname, cell_id_colname, quality_colname, quality_filter, count_colname,smoothing,quality_per_hexagon,quality_per_probe, move_x,move_y,coord_to_um_conversion) for batch_file in batch_files]
+        futures = [executor.submit(process_batch, batch_file, hexagon_size, feature_colname, x_colname, y_colname, cell_id_colname, quality_colname, quality_filter, count_colname,smoothing,quality_per_hexagon,quality_per_probe, move_x,move_y,coord_to_um_conversion,spot_diameter) for batch_file in batch_files]
         
         with tqdm(total=len(batch_files), desc="Processing batches", unit="batch") as progress_bar:
             for future in concurrent.futures.as_completed(futures):
@@ -572,7 +570,7 @@ def hex_to_rows(hexagon_batch, start_index, features, hexagon_counts,hexagon_nam
 def create_pseudovisium(path,hexagon_counts,hexagon_cell_counts,hexagon_quality, probe_quality,
                         img_file_path=None,  project_name="project",
                          alignment_matrix_file=None,image_pixels_per_um=1/0.2125,hexagon_size=100,tissue_hires_scalef=0.2,
-                         pixel_to_micron=False,max_workers=min(2, multiprocessing.cpu_count())):
+                         pixel_to_micron=False,max_workers=min(2, multiprocessing.cpu_count()),spot_diameter=None):
     """
     create_pseudovisium(path, hexagon_counts, hexagon_cell_counts, img_file_path=None, project_name="project", alignment_matrix_file=None, image_pixels_per_um=1/0.2125, hexagon_size=100, tissue_hires_scalef=0.2, pixel_to_micron=False, max_workers=min(2, multiprocessing.cpu_count()))
     Creates a Pseudovisium output directory structure and files.
@@ -590,6 +588,10 @@ def create_pseudovisium(path,hexagon_counts,hexagon_cell_counts,hexagon_quality,
     pixel_to_micron (bool, optional): Whether to convert pixel coordinates to micron coordinates. Defaults to False.
     max_workers (int, optional): The maximum number of worker processes to use. Defaults to min(2, multiprocessing.cpu_count()).
     """
+    spot = True if spot_diameter!=None else False
+    if spot:
+        print("Visium-like array structure is being built rather than hexagonal tesselation!!!")
+
 
     #to path, create a folder called pseudovisium
     folderpath = path+ '/pseudovisium/' + project_name
@@ -611,16 +613,21 @@ def create_pseudovisium(path,hexagon_counts,hexagon_cell_counts,hexagon_quality,
  ############################################## ##############################################
     # see https://kb.10xgenomics.com/hc/en-us/articles/11636252598925-What-are-the-Xenium-image-scale-factors
     #https://www.10xgenomics.com/support/software/space-ranger/latest/analysis/outputs/spatial-outputs
+    
     scalefactors = {"tissue_hires_scalef":tissue_hires_scalef,
                      "tissue_lowres_scalef": tissue_hires_scalef/10,
-                       "fiducial_diameter_fullres": 0,
-                         "spot_diameter_fullres": 2*hexagon_size*(image_pixels_per_um)}
+                       "fiducial_diameter_fullres": 0}
+
+    if spot:
+        scalefactors["spot_diameter_fullres"] = spot_diameter*(image_pixels_per_um)
+    else:
+        scalefactors["spot_diameter_fullres"] = 2*hexagon_size*(image_pixels_per_um)
     
     print("Creating scalefactors_json.json file in spatial folder.")
     with open(folderpath +'/spatial/scalefactors_json.json', 'w') as f:
         json.dump(scalefactors, f)
  ############################################## ##############################################
-
+    
     x, y, x_, y_, contain, hexagon_names = [], [], [], [], [], []
     for hexagon in hexagon_counts:
         x_.append((hexagon[0] + hexagon_size) // (2 * hexagon_size))
@@ -993,7 +1000,7 @@ def generate_pv(csv_file,img_file_path=None, hexagon_size=100,  output_path=None
                 feature_colname="feature_name", x_colname="x_location", y_colname="y_location",
                 cell_id_colname="None", quality_colname="qv",
                 pixel_to_micron=False, max_workers=min(2, multiprocessing.cpu_count()), quality_filter=False, count_colname="NA",visium_hd_folder=None,
-                smoothing=False,quality_per_hexagon=False,quality_per_probe=False,h5_x_colname = "x", h5_y_colname = "y",move_x=0,move_y=0,coord_to_um_conversion=1):
+                smoothing=False,quality_per_hexagon=False,quality_per_probe=False,h5_x_colname = "x", h5_y_colname = "y",move_x=0,move_y=0,coord_to_um_conversion=1,spot_diameter=None):
     """
     generate_pv(csv_file, img_file_path=None, hexagon_size=100, field_size_x=1000, field_size_y=1000, output_path=None, 
     batch_size=1000000, alignment_matrix_file=None, project_name='project', image_pixels_per_um=1/0.85, tissue_hires_scalef=0.2, 
@@ -1050,14 +1057,17 @@ def generate_pv(csv_file,img_file_path=None, hexagon_size=100,  output_path=None
     hexagon_counts, hexagon_cell_counts, hexagon_quality, probe_quality= process_csv_file(csv_file, hexagon_size,  batch_size, 
              technology, feature_colname, x_colname, y_colname,cell_id_colname, quality_colname=quality_colname,
                max_workers=max_workers, quality_filter=quality_filter, count_colname=count_colname,smoothing=smoothing,
-               quality_per_hexagon=quality_per_hexagon,quality_per_probe=quality_per_probe,h5_x_colname=h5_x_colname,h5_y_colname=h5_y_colname,move_x=move_x,move_y=move_y,coord_to_um_conversion=coord_to_um_conversion)
+               quality_per_hexagon=quality_per_hexagon,quality_per_probe=quality_per_probe,h5_x_colname=h5_x_colname,
+               h5_y_colname=h5_y_colname,move_x=move_x,move_y=move_y,coord_to_um_conversion=coord_to_um_conversion,
+                spot_diameter=spot_diameter)
         
     # Create Pseudovisium output
     create_pseudovisium(path=output_path,hexagon_counts=hexagon_counts, hexagon_cell_counts=hexagon_cell_counts, probe_quality=probe_quality,
                         img_file_path=img_file_path, hexagon_quality =hexagon_quality,
                           project_name=project_name, alignment_matrix_file=alignment_matrix_file,
                           image_pixels_per_um=image_pixels_per_um,hexagon_size=hexagon_size,
-                          tissue_hires_scalef=tissue_hires_scalef,pixel_to_micron=pixel_to_micron,max_workers=max_workers)
+                          tissue_hires_scalef=tissue_hires_scalef,pixel_to_micron=pixel_to_micron,max_workers=max_workers,
+                            spot_diameter=spot_diameter)
 
     #save all arguments in a json file called arguments.json
     print("Creating arguments.json file in output path.")
@@ -1070,7 +1080,8 @@ def generate_pv(csv_file,img_file_path=None, hexagon_size=100,  output_path=None
                     "quality_colname":quality_colname,"quality_filter":quality_filter,"count_colname":count_colname,
                     "smoothing":smoothing,"quality_per_hexagon":quality_per_hexagon,"quality_per_probe":quality_per_probe,
                     "max_workers":max_workers,"visium_hd_folder":visium_hd_folder,"h5_x_colname":h5_x_colname,"h5_y_colname":h5_y_colname,
-                    "move_x":move_x,"move_y":move_y,"coord_to_um_conversion":coord_to_um_conversion}
+                    "move_x":move_x,"move_y":move_y,"coord_to_um_conversion":coord_to_um_conversion,
+                    "spot_diameter":spot_diameter}
 
     with open(output_path + '/pseudovisium/' + project_name + '/arguments.json', 'w') as f:
         json.dump(arguments, f)
@@ -1115,6 +1126,7 @@ def main():
     parser.add_argument("--move_x","-mx", type=int, help="Move x", default=0)
     parser.add_argument("--move_y","-my", type=int, help="Move y", default=0)
     parser.add_argument("--coord_to_um_conversion","-ctu", type=float, help="Conversion factor from coordinates to microns", default=1.0)
+    parser.add_argument("--spot_diameter","-sd", type=float, help="Spot diameter", default=None)
     parser.add_argument("-v", "--verbose", action="store_true", help="Print out script purpose and parameters")
     
     
@@ -1145,7 +1157,8 @@ def main():
                 h5_x_colname=args.h5_x_colname,h5_y_colname=args.h5_y_colname,
                 move_x=args.move_x,move_y=args.move_y,
                 coord_to_um_conversion=args.coord_to_um_conversion,
-                visium_hd_folder=args.visium_hd_folder)
+                visium_hd_folder=args.visium_hd_folder,
+                spot_diameter=args.spot_diameter)
                 
     print("Pseudovisium output generated successfully.")
 

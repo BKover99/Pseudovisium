@@ -74,7 +74,7 @@ def generate_qc_report(folders, output_folder=os.getcwd(), gene_names=["RYR3", "
             #name cols as barcode, quality, count
             probe_quality.columns = ["Probe_ID", "Quality", "Count"]
             probe_quality["Dataset"] = dataset_name
-            non_ctrl_probes = probe_quality[~probe_quality["Probe_ID"].str.contains("control|ctrl|pos|neg|Ctrl|blank|Control|Blank|BLANK")]
+            non_ctrl_probes = probe_quality[~probe_quality["Probe_ID"].str.contains("control|ctrl|pos|NegPrb|neg|Ctrl|blank|Control|Blank|BLANK")]
             non_ctrl_probes_q_below_20 = non_ctrl_probes[non_ctrl_probes["Quality"]<20]
             pct_non_ctrl_probes_q_below_20 = len(non_ctrl_probes_q_below_20)/len(non_ctrl_probes)
             
@@ -123,7 +123,7 @@ def generate_qc_report(folders, output_folder=os.getcwd(), gene_names=["RYR3", "
         cv_features = np.std(grouped_matrix) / np.mean(grouped_matrix)
 
         number_of_probes = len(features)
-        number_of_genes = len(features[~features["Gene_ID"].str.contains("control|ctrl|pos|neg|Ctrl|blank|Control|Blank|BLANK")])
+        number_of_genes = len(features[~features["Gene_ID"].str.contains("control|ctrl|pos|NegPrb|neg|Ctrl|blank|Control|Blank|BLANK")])
         
 
         neg_control_probes = features[features["Gene_ID"].str.contains("Probe")].index + 1
@@ -1020,8 +1020,8 @@ def generate_dashboard_html(replicates_data, gene_names, include_morans_i,qualit
 def not_working_probe_based_on_sum(matrix_joined,sample_id="Sample1"):
     grouped_matrix = matrix_joined.groupby("Gene_ID_y")["Counts"].sum()
     #where index has control|blank|Control|Blank|BLANK in it
-    grouped_matrix_neg_probes = grouped_matrix[grouped_matrix.index.str.contains("control|ctrl|pos|neg|Ctrl|blank|Control|Blank|BLANK")]
-    grouped_matrix_true_probes = grouped_matrix[~grouped_matrix.index.str.contains("control|ctrl|pos|neg|Ctrl|blank|Control|Blank|BLANK")]     
+    grouped_matrix_neg_probes = grouped_matrix[grouped_matrix.index.str.contains("control|ctrl|pos|NegPrb|neg|Ctrl|blank|Control|Blank|BLANK")]
+    grouped_matrix_true_probes = grouped_matrix[~grouped_matrix.index.str.contains("control|ctrl|pos|NegPrb|neg|Ctrl|blank|Control|Blank|BLANK")]     
 
     #create a plot_df that is grouped_matrix and a column specifying whether the gene is a neg control or not
     plot_df = pd.DataFrame(grouped_matrix)
@@ -1119,8 +1119,8 @@ def probe_stripplot(plot_df, col_to_plot="log_counts", sample_id="Sample 1", leg
     return html_fig
 
 def not_working_probe_based_on_quality(probe_quality, sample_id="Sample1"):
-    probe_quality_neg_probes = probe_quality[probe_quality["Probe_ID"].str.contains("control|ctrl|pos|neg|Ctrl|blank|Control|Blank|BLANK")]
-    probe_quality_true_probes = probe_quality[~probe_quality["Probe_ID"].str.contains("control|ctrl|pos|neg|Ctrl|blank|Control|Blank|BLANK")]
+    probe_quality_neg_probes = probe_quality[probe_quality["Probe_ID"].str.contains("control|ctrl|pos|NegPrb|neg|Ctrl|blank|Control|Blank|BLANK")]
+    probe_quality_true_probes = probe_quality[~probe_quality["Probe_ID"].str.contains("control|ctrl|pos|NegPrb|neg|Ctrl|blank|Control|Blank|BLANK")]
     plot_df = probe_quality.reset_index(drop=True)
     plot_df["Probe category"] = [1 if gene in probe_quality_neg_probes.Probe_ID.values else 0 for gene in plot_df.Probe_ID.values]
 
@@ -1146,8 +1146,8 @@ def not_working_probe_based_on_quality(probe_quality, sample_id="Sample1"):
 
 def not_working_probe_based_on_morans_i(morans_table, sample_id="Sample1"):
     
-    morans_table_neg_probes = morans_table[morans_table.gene.str.contains("control|ctrl|pos|neg|Ctrl|blank|Control|Blank|BLANK")]
-    morans_table_true_probes = morans_table[~morans_table.gene.str.contains("control|ctrl|pos|neg|Ctrl|blank|Control|Blank|BLANK")]     
+    morans_table_neg_probes = morans_table[morans_table.gene.str.contains("control|ctrl|pos|NegPrb|neg|Ctrl|blank|Control|Blank|BLANK")]
+    morans_table_true_probes = morans_table[~morans_table.gene.str.contains("control|ctrl|pos|NegPrb|neg|Ctrl|blank|Control|Blank|BLANK")]     
 
     #create a plot_df that is grouped_matrix and a column specifying whether the gene is a neg control or not
     plot_df = morans_table.reset_index(drop=True)
