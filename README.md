@@ -18,7 +18,7 @@ With the merge command, you can easily merge multiple Pseudovisium or Visium for
 
 ## 🎯 Flexibility and Compatibility
 
-Pseudovisium is designed to be flexible and compatible with various spatial transcriptomics technologies. It supports data from different platforms and offers customizable output formats, ensuring seamless integration with other analysis tools and workflows. Input files range from transcripts.csv, to .h5 as well as 10X feature-barcode-matrix directories.
+Pseudovisium is designed to be flexible and compatible with various spatial transcriptomics technologies. It supports data from different platforms ensuring seamless integration with other analysis tools and workflows. Input files range from transcripts.csv, to .h5 as well as 10X feature-barcode-matrix directories.
 Technologies tried include:
 
 #### Vizgen
@@ -42,6 +42,12 @@ For more information and the latest version, visit the Pseudovisium PyPI page ht
 ## Examples
 See the example Google Colab on converting 10X Xenium Mouse pup data to Pseudovisium format:
 https://github.com/BKover99/Pseudovisium/blob/main/pseudovisium_mouse_pup.ipynb
+
+Converting 10X Visium HD Mouse brain data to Pseudovisium format:
+https://github.com/BKover99/Pseudovisium/blob/main/Visium_HD_example.ipynb
+
+QC-ing 28 replicates of Xenium pulmonary lung dataset:
+https://github.com/BKover99/Pseudovisium/blob/main/Pulmonary_lung_QC.ipynb
 
 ## Goals
 
