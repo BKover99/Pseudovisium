@@ -23,13 +23,13 @@ from pathlib import Path
 
 def closest_hex(x,y,hexagon_size,spot_diameter=None):
     """
-    closest_hex(x, y, hexagon_size)
     Calculates the closest hexagon centroid to the given (x, y) coordinates.
 
     Args:
-    x (float): The x-coordinate.
-    y (float): The y-coordinate.
-    hexagon_size (float): The size of the hexagon.
+        x (float): The x-coordinate.
+        y (float): The y-coordinate.
+        hexagon_size (float): The size of the hexagon.
+        spot_diameter (float, optional): The diameter of the spot. Defaults to None.
 
     Returns:
         tuple: The closest hexagon centroid coordinates (x, y) rounded to the nearest integer.
@@ -87,7 +87,6 @@ def closest_hex(x,y,hexagon_size,spot_diameter=None):
 
 def preprocess_csv(csv_file, batch_size, fieldnames):
     """
-    preprocess_csv(csv_file, batch_size, fieldnames)
     Preprocesses a CSV file by splitting it into smaller batches.
 
     Args:
@@ -97,7 +96,6 @@ def preprocess_csv(csv_file, batch_size, fieldnames):
 
     Returns:
         tuple: A tuple containing the temporary directory path and the total number of batches created.
-
     """
 
 
@@ -155,25 +153,28 @@ def preprocess_csv(csv_file, batch_size, fieldnames):
 
 def process_batch(batch_file, hexagon_size, feature_colname, x_colname, y_colname, cell_id_colname, quality_colname=None, quality_filter=False, count_colname="NA",smoothing=False, quality_per_hexagon=False, quality_per_probe=False,move_x=0,move_y=0,coord_to_um_conversion=1,spot_diameter=None):
     """
-    process_batch(batch_file, hexagon_size, feature_colname, x_colname, y_colname, cell_id_colname, quality_colname=None, quality_filter=False, count_colname="NA", smoothing=False)
     Processes a batch CSV file to calculate hexagon counts and cell counts.
 
     Args:
-    batch_file (str): The path to the batch CSV file.
-    hexagon_size (float): The size of the hexagon.
-    feature_colname (str): The name of the feature column.
-    x_colname (str): The name of the x-coordinate column.
-    y_colname (str): The name of the y-coordinate column.
-    cell_id_colname (str): The name of the cell ID column.
-    quality_colname (str, optional): The name of the quality score column. Defaults to None.
-    quality_filter (bool, optional): Whether to filter rows based on quality score. Defaults to False.
-    count_colname (str, optional): The name of the count column. Defaults to "NA".
-    smoothing (bool, optional): Whether to apply smoothing to the counts. Defaults to False.
+        batch_file (str): The path to the batch CSV file.
+        hexagon_size (float): The size of the hexagon.
+        feature_colname (str): The name of the feature column.
+        x_colname (str): The name of the x-coordinate column.
+        y_colname (str): The name of the y-coordinate column.
+        cell_id_colname (str): The name of the cell ID column.
+        quality_colname (str, optional): The name of the quality score column. Defaults to None.
+        quality_filter (bool, optional): Whether to filter rows based on quality score. Defaults to False.
+        count_colname (str, optional): The name of the count column. Defaults to "NA".
+        smoothing (bool, optional): Whether to apply smoothing to the counts. Defaults to False.
+        quality_per_hexagon (bool, optional): Whether to calculate quality per hexagon. Defaults to False.
+        quality_per_probe (bool, optional): Whether to calculate quality per probe. Defaults to False.
+        move_x (float, optional): The amount to move the x-coordinate. Defaults to 0.
+        move_y (float, optional): The amount to move the y-coordinate. Defaults to 0.
+        coord_to_um_conversion (float, optional): The conversion factor from coordinates to micrometers. Defaults to 1.
+        spot_diameter (float, optional): The diameter of the spot. Defaults to None.
 
     Returns:
-        dict or tuple: If cell_id_colname is not "None", returns a tuple containing the hexagon counts and hexagon cell counts.
-                    Otherwise, returns the hexagon counts dictionary.
-
+        tuple: A tuple containing the hexagon counts, hexagon cell counts, hexagon quality, and probe quality dictionaries.
     """
     spot = True if spot_diameter!=None else False
 
@@ -307,23 +308,15 @@ def process_batch(batch_file, hexagon_size, feature_colname, x_colname, y_colnam
 
 
 def write_10X_h5(adata, file):
-    """Writes adata to a 10X-formatted h5 file.
-    
-    Note that this function is not fully tested and may not work for all cases.
-    It will not write the following keys to the h5 file compared to 10X:
-    '_all_tag_keys', 'pattern', 'read', 'sequence'
+    """
+    Writes adata to a 10X-formatted h5 file.
 
     Args:
         adata (AnnData object): AnnData object to be written.
-        file (str): File name to be written to. If no extension is given, '.h5' is appended.
-
-    Raises:
-        FileExistsError: If file already exists.
-
+        file (str): File name to be written to. If no extension is gi
     Returns:
         None
     """
-    #remove file
     
     if '.h5' not in file: file = f'{file}.h5'
     if Path(file).exists():
@@ -362,27 +355,33 @@ def write_10X_h5(adata, file):
 def process_csv_file(csv_file, hexagon_size, batch_size=1000000, technology="Xenium", feature_colname="feature_name", x_colname="x_location", y_colname="y_location", cell_id_colname="None", quality_colname="qv", max_workers=min(2, multiprocessing.cpu_count()),
                      quality_filter=False, count_colname="NA",smoothing=False,quality_per_hexagon=False,quality_per_probe=False,h5_x_colname="x",h5_y_colname="y",move_x=0,move_y=0,coord_to_um_conversion=1,spot_diameter=None):
     """
-    process_csv_file(csv_file, hexagon_size, field_size, batch_size=1000000, technology="Xenium", feature_colname="feature_name", x_colname="x_location", y_colname="y_location", cell_id_colname="None", quality_colname="qv", max_workers=min(2, multiprocessing.cpu_count()), quality_filter=False, count_colname="NA", smoothing=False)
     Processes a CSV file to calculate hexagon counts and cell counts using parallel processing.
 
     Args:
-    csv_file (str): The path to the CSV file.
-    hexagon_size (float): The size of the hexagon.
-    field_size (tuple): The size of the field as (field_size_x, field_size_y).
-    batch_size (int, optional): The number of rows per batch. Defaults to 1000000.
-    technology (str, optional): The technology used. Defaults to "Xenium".
-    feature_colname (str, optional): The name of the feature column. Defaults to "feature_name".
-    x_colname (str, optional): The name of the x-coordinate column. Defaults to "x_location".
-    y_colname (str, optional): The name of the y-coordinate column. Defaults to "y_location".
-    cell_id_colname (str, optional): The name of the cell ID column. Defaults to "None".
-    quality_colname (str, optional): The name of the quality score column. Defaults to "qv".
-    max_workers (int, optional): The maximum number of worker processes to use. Defaults to min(2, multiprocessing.cpu_count()).
-    quality_filter (bool, optional): Whether to filter rows based on quality score. Defaults to False.
-    count_colname (str, optional): The name of the count column. Defaults to "NA".
-    smoothing (bool, optional): Whether to apply smoothing to the counts. Defaults to False.
+        csv_file (str): The path to the CSV file.
+        hexagon_size (float): The size of the hexagon.
+        batch_size (int, optional): The number of rows per batch. Defaults to 1000000.
+        technology (str, optional): The technology used. Defaults to "Xenium".
+        feature_colname (str, optional): The name of the feature column. Defaults to "feature_name".
+        x_colname (str, optional): The name of the x-coordinate column. Defaults to "x_location".
+        y_colname (str, optional): The name of the y-coordinate column. Defaults to "y_location".
+        cell_id_colname (str, optional): The name of the cell ID column. Defaults to "None".
+        quality_colname (str, optional): The name of the quality score column. Defaults to "qv".
+        max_workers (int, optional): The maximum number of worker processes to use. Defaults to min(2, multiprocessing.cpu_count()).
+        quality_filter (bool, optional): Whether to filter rows based on quality score. Defaults to False.
+        count_colname (str, optional): The name of the count column. Defaults to "NA".
+        smoothing (bool, optional): Whether to apply smoothing to the counts. Defaults to False.
+        quality_per_hexagon (bool, optional): Whether to calculate quality per hexagon. Defaults to False.
+        quality_per_probe (bool, optional): Whether to calculate quality per probe. Defaults to False.
+        h5_x_colname (str, optional): The name of the x-coordinate column in the h5 file. Defaults to "x".
+        h5_y_colname (str, optional): The name of the y-coordinate column in the h5 file. Defaults to "y".
+        move_x (float, optional): The amount to move the x-coordinate. Defaults to 0.
+        move_y (float, optional): The amount to move the y-coordinate. Defaults to 0.
+        coord_to_um_conversion (float, optional): The conversion factor from coordinates to micrometers. Defaults to 1.
+        spot_diameter (float, optional): The diameter of the spot. Defaults to None.
 
     Returns:
-        tuple: A tuple containing the hexagon counts, hexagons dictionary, and hexagon cell counts.
+        tuple: A tuple containing the hexagon counts, hexagon cell counts, hexagon quality, and probe quality dictionaries.
     """
 
     print(f"Quality filter is set to {quality_filter}")
@@ -552,11 +551,21 @@ def process_csv_file(csv_file, hexagon_size, batch_size=1000000, technology="Xen
 
 
 
-def process_hexagon(hexagon, hexagon_index, features, hexagon_counts):
-        return [[features.index(feature) + 1, hexagon_index + 1, count]
-                for feature, count in hexagon_counts[hexagon].items()]
-
 def hex_to_rows(hexagon_batch, start_index, features, hexagon_counts,hexagon_names):
+    """
+    Converts a batch of hexagons to rows for the matrix.
+
+    Args:
+        hexagon_batch (list): A list of hexagons to process.
+        start_index (int): The starting index for the hexagons.
+        features (list): A list of features.
+        hexagon_counts (dict): A dictionary of hexagon counts.
+        hexagon_names (list): A list of hexagon names.
+
+    Returns:
+        list: A list of matrix rows.
+    """
+
     matrix_data = []
     for hexagon in hexagon_batch: ###Here is the error!!! HExagon indices are scrambled!!!!!
         count_dict = hexagon_counts.get(hexagon, {})
@@ -572,21 +581,23 @@ def create_pseudovisium(path,hexagon_counts,hexagon_cell_counts,hexagon_quality,
                          alignment_matrix_file=None,image_pixels_per_um=1/0.2125,hexagon_size=100,tissue_hires_scalef=0.2,
                          pixel_to_micron=False,max_workers=min(2, multiprocessing.cpu_count()),spot_diameter=None):
     """
-    create_pseudovisium(path, hexagon_counts, hexagon_cell_counts, img_file_path=None, project_name="project", alignment_matrix_file=None, image_pixels_per_um=1/0.2125, hexagon_size=100, tissue_hires_scalef=0.2, pixel_to_micron=False, max_workers=min(2, multiprocessing.cpu_count()))
     Creates a Pseudovisium output directory structure and files.
-    
+
     Args:
-    path (str): The path to create the Pseudovisium output directory.
-    hexagon_counts (dict): A dictionary of hexagon counts.
-    hexagon_cell_counts (dict): A dictionary of hexagon cell counts.
-    img_file_path (str, optional): The path to the image file. Defaults to None.
-    project_name (str, optional): The name of the project. Defaults to "project".
-    alignment_matrix_file (str, optional): The path to the alignment matrix file. Defaults to None.
-    image_pixels_per_um (float, optional): The number of image pixels per micrometer. Defaults to 1/0.2125.
-    hexagon_size (int, optional): The size of the hexagon. Defaults to 100.
-    tissue_hires_scalef (float, optional): The scaling factor for the high-resolution tissue image. Defaults to 0.2.
-    pixel_to_micron (bool, optional): Whether to convert pixel coordinates to micron coordinates. Defaults to False.
-    max_workers (int, optional): The maximum number of worker processes to use. Defaults to min(2, multiprocessing.cpu_count()).
+        path (str): The path to create the Pseudovisium output directory.
+        hexagon_counts (dict): A dictionary of hexagon counts.
+        hexagon_cell_counts (dict): A dictionary of hexagon cell counts.
+        hexagon_quality (dict): A dictionary of hexagon quality scores.
+        probe_quality (dict): A dictionary of probe quality scores.
+        img_file_path (str, optional): The path to the image file. Defaults to None.
+        project_name (str, optional): The name of the project. Defaults to "project".
+        alignment_matrix_file (str, optional): The path to the alignment matrix file. Defaults to None.
+        image_pixels_per_um (float, optional): The number of image pixels per micrometer. Defaults to 1/0.2125.
+        hexagon_size (int, optional): The size of the hexagon. Defaults to 100.
+        tissue_hires_scalef (float, optional): The scaling factor for the high-resolution tissue image. Defaults to 0.2.
+        pixel_to_micron (bool, optional): Whether to convert pixel coordinates to micron coordinates. Defaults to False.
+        max_workers (int, optional): The maximum number of worker processes to use. Defaults to min(2, multiprocessing.cpu_count()).
+        spot_diameter (float, optional): The diameter of the spot. Defaults to None.
     """
     spot = True if spot_diameter!=None else False
     if spot:
@@ -619,9 +630,9 @@ def create_pseudovisium(path,hexagon_counts,hexagon_cell_counts,hexagon_quality,
                        "fiducial_diameter_fullres": 0}
 
     if spot:
-        scalefactors["spot_diameter_fullres"] = spot_diameter*(image_pixels_per_um)
+        scalefactors["spot_diameter_fullres"] = spot_diameter*image_pixels_per_um
     else:
-        scalefactors["spot_diameter_fullres"] = 2*hexagon_size*(image_pixels_per_um)
+        scalefactors["spot_diameter_fullres"] = 2*hexagon_size*image_pixels_per_um
     
     print("Creating scalefactors_json.json file in spatial folder.")
     with open(folderpath +'/spatial/scalefactors_json.json', 'w') as f:
@@ -872,15 +883,18 @@ def create_pseudovisium(path,hexagon_counts,hexagon_cell_counts,hexagon_quality,
 ###################################################################################################################################################
 def read_files(folder,technology):
     """
-    read_files(folder)
-    Reads the necessary files from a Visium HD folder.
+    Reads the necessary files from a Visium HD or Curio folder.
 
     Args:
-    folder (str): The path to the Visium HD folder.
+        folder (str): The path to the Visium HD or Curio folder.
+        technology (str): The technology used, either "Visium_HD" or "Curio".
 
     Returns:
-        tuple: A tuple containing the scale factors, tissue positions, and filtered feature-barcode matrix.
+        tuple or AnnData: A tuple containing the scale factors, tissue positions, and filtered feature-barcode matrix (for Visium HD),
+                          or an AnnData object (for Curio).
     """
+
+    
     if technology == "Visium_HD":
         scalefactors = json.load(open(folder+"/spatial/scalefactors_json.json"))
         tissue_pos = pd.read_parquet(folder+"/spatial/tissue_positions.parquet")
@@ -896,16 +910,20 @@ def read_files(folder,technology):
 
 def anndata_to_df(adata, technology,tissue_pos=None,scalefactors=None,x_col=None,y_col=None):
     """
-    anndata_to_df(adata, tissue_pos, scalefactors)
     Converts an AnnData object to a DataFrame.
+
     Args:
-    adata (AnnData): The AnnData object containing the counts matrix.
-    tissue_pos (DataFrame): The tissue positions DataFrame.
-    scalefactors (dict): The scale factors dictionary.
+        adata (AnnData): The AnnData object containing the counts matrix.
+        technology (str): The technology used, either "Visium_HD" or "Curio".
+        tissue_pos (DataFrame, optional): The tissue positions DataFrame (for Visium HD). Defaults to None.
+        scalefactors (dict, optional): The scale factors dictionary (for Visium HD). Defaults to None.
+        x_col (str, optional): The name of the x-coordinate column (for Curio). Defaults to None.
+        y_col (str, optional): The name of the y-coordinate column (for Curio). Defaults to None.
 
     Returns:
-        tuple: A tuple containing the converted DataFrame and the image resolution.
+        tuple: A tuple containing the converted DataFrame and the image resolution or scale.
     """
+
     if technology == "Visium_HD":
         #get image resolution of the hires image
         image_resolution = scalefactors["microns_per_pixel"]/scalefactors["tissue_hires_scalef"]
@@ -968,14 +986,17 @@ def anndata_to_df(adata, technology,tissue_pos=None,scalefactors=None,x_col=None
 
 def visium_hd_curio_to_transcripts(folder,output,technology,x_col=None,y_col=None):
     """
-    visium_hd_to_transcripts(folder, output)
-    Converts Visium HD files to a transcripts CSV file.
+    Converts Visium HD or Curio files to a transcripts CSV file.
+
     Args:
-    folder (str): The path to the Visium HD folder.
-    output (str): The path to save the transcripts CSV file.
+        folder (str): The path to the Visium HD or Curio folder.
+        output (str): The path to save the transcripts CSV file.
+        technology (str): The technology used, either "Visium_HD" or "Curio".
+        x_col (str, optional): The name of the x-coordinate column (for Curio). Defaults to None.
+        y_col (str, optional): The name of the y-coordinate column (for Curio). Defaults to None.
 
     Returns:
-        float: The image resolution (pixels per micrometer).
+        float: The image resolution (pixels per micrometer) for Visium HD, or the scale for Curio.
     """
 
     if technology == "Visium_HD":
@@ -996,45 +1017,44 @@ def visium_hd_curio_to_transcripts(folder,output,technology,x_col=None,y_col=Non
 ######### Main function to generate pseudovisium output ############################################################################################################
     
 def generate_pv(csv_file,img_file_path=None, hexagon_size=100,  output_path=None, batch_size=1000000, alignment_matrix_file=None, project_name='project',
-                image_pixels_per_um=1/0.85, tissue_hires_scalef=0.2,technology="Xenium", 
+                image_pixels_per_um=1, tissue_hires_scalef=0.2,technology="Xenium", 
                 feature_colname="feature_name", x_colname="x_location", y_colname="y_location",
                 cell_id_colname="None", quality_colname="qv",
                 pixel_to_micron=False, max_workers=min(2, multiprocessing.cpu_count()), quality_filter=False, count_colname="NA",visium_hd_folder=None,
                 smoothing=False,quality_per_hexagon=False,quality_per_probe=False,h5_x_colname = "x", h5_y_colname = "y",move_x=0,move_y=0,coord_to_um_conversion=1,spot_diameter=None):
     """
-    generate_pv(csv_file, img_file_path=None, hexagon_size=100, field_size_x=1000, field_size_y=1000, output_path=None, 
-    batch_size=1000000, alignment_matrix_file=None, project_name='project', image_pixels_per_um=1/0.85, tissue_hires_scalef=0.2, 
-    technology="Xenium", feature_colname="feature_name", x_colname="x_location", y_colname="y_location", cell_id_colname="None", 
-    quality_colname="qv", pixel_to_micron=False, max_workers=min(2, multiprocessing.cpu_count()), quality_filter=False, 
-    count_colname="NA", visium_hd_folder=None, smoothing=False)
-
-    
-    Generates a Pseudovisium output from a CSV file.
+    Generates a Pseudovisium output from a CSV file or Visium HD/Curio folder.
 
     Args:
-    csv_file (str): The path to the CSV file.
-    img_file_path (str, optional): The path to the image file. Defaults to None.
-    hexagon_size (int, optional): The size of the hexagon. Defaults to 100.
-    field_size_x (int, optional): The size of the field in the x-dimension. Defaults to 1000.
-    field_size_y (int, optional): The size of the field in the y-dimension. Defaults to 1000.
-    output_path (str, optional): The path to save the Pseudovisium output. Defaults to None.
-    batch_size (int, optional): The number of rows per batch. Defaults to 1000000.
-    alignment_matrix_file (str, optional): The path to the alignment matrix file. Defaults to None.
-    project_name (str, optional): The name of the project. Defaults to 'project'.
-    image_pixels_per_um (float, optional): The number of image pixels per micrometer. Defaults to 1/0.85.
-    tissue_hires_scalef (float, optional): The scaling factor for the high-resolution tissue image. Defaults to 0.2.
-    technology (str, optional): The technology used. Defaults to "Xenium".
-    feature_colname (str, optional): The name of the feature column. Defaults to "feature_name".
-    x_colname (str, optional): The name of the x-coordinate column. Defaults to "x_location".
-    y_colname (str, optional): The name of the y-coordinate column. Defaults to "y_location".
-    cell_id_colname (str, optional): The name of the cell ID column. Defaults to "None".
-    quality_colname (str, optional): The name of the quality score column. Defaults to "qv".
-    pixel_to_micron (bool, optional): Whether to convert pixel coordinates to micron coordinates. Defaults to False.
-    max_workers (int, optional): The maximum number of worker processes to use. Defaults to min(2, multiprocessing.cpu_count()).
-    quality_filter (bool, optional): Whether to filter rows based on quality score. Defaults to False.
-    count_colname (str, optional): The name of the count column. Defaults to "NA".
-    visium_hd_folder (str, optional): The path to the Visium HD folder. Defaults to None.
-    smoothing (float, optional): The smoothing factor. Defaults to False.
+        csv_file (str): The path to the CSV file.
+        img_file_path (str, optional): The path to the image file. Defaults to None.
+        hexagon_size (int, optional): The size of the hexagon. Defaults to 100.
+        output_path (str, optional): The path to save the Pseudovisium output. Defaults to None.
+        batch_size (int, optional): The number of rows per batch. Defaults to 1000000.
+        alignment_matrix_file (str, optional): The path to the alignment matrix file. Defaults to None.
+        project_name (str, optional): The name of the project. Defaults to 'project'.
+        image_pixels_per_um (float, optional): The number of image pixels per micrometer. Defaults to 1.
+        tissue_hires_scalef (float, optional): The scaling factor for the high-resolution tissue image. Defaults to 0.2.
+        technology (str, optional): The technology used. Defaults to "Xenium".
+        feature_colname (str, optional): The name of the feature column. Defaults to "feature_name".
+        x_colname (str, optional): The name of the x-coordinate column. Defaults to "x_location".
+        y_colname (str, optional): The name of the y-coordinate column. Defaults to "y_location".
+        cell_id_colname (str, optional): The name of the cell ID column. Defaults to "None".
+        quality_colname (str, optional): The name of the quality score column. Defaults to "qv".
+        pixel_to_micron (bool, optional): Whether to convert pixel coordinates to micron coordinates. Defaults to False.
+        max_workers (int, optional): The maximum number of worker processes to use. Defaults to min(2, multiprocessing.cpu_count()).
+        quality_filter (bool, optional): Whether to filter rows based on quality score. Defaults to False.
+        count_colname (str, optional): The name of the count column. Defaults to "NA".
+        visium_hd_folder (str, optional): The path to the Visium HD folder. Defaults to None.
+        smoothing (float, optional): The smoothing factor. Defaults to False.
+        quality_per_hexagon (bool, optional): Whether to calculate quality per hexagon. Defaults to False.
+        quality_per_probe (bool, optional): Whether to calculate quality per probe. Defaults to False.
+        h5_x_colname (str, optional): The name of the x-coordinate column in the h5 file. Defaults to "x".
+        h5_y_colname (str, optional): The name of the y-coordinate column in the h5 file. Defaults to "y".
+        move_x (float, optional): The amount to move the x-coordinate. Defaults to 0.
+        move_y (float, optional): The amount to move the y-coordinate. Defaults to 0.
+        coord_to_um_conversion (float, optional): The conversion factor from coordinates to micrometers. Defaults to 1.
+        spot_diameter (float, optional): The diameter of the spot. Defaults to None.
     """
 
 
@@ -1094,13 +1114,12 @@ def generate_pv(csv_file,img_file_path=None, hexagon_size=100,  output_path=None
 
 def main():
     """
-    main()
     The main function that parses command-line arguments and calls the generate_pv function.
     """
     parser = argparse.ArgumentParser(description="Process parameters.")
     parser.add_argument("--csv_file", "-c", type=str, help="CSV file path", default=None)
     parser.add_argument("--output_path", "-o", type=str, help="Output path", default='.')
-    parser.add_argument("--hexagon_size", "-hs", type=int, help="Hexagon size", default=100)
+    parser.add_argument("--hexagon_size", "-hs", type=float, help="Hexagon size", default=100.0)
     parser.add_argument("--img_file_path", "-i", type=str, help="Image file path", default=None)
     parser.add_argument("--alignment_matrix_file", "-am", type=str, help="Alignment matrix file path", default=None)
     parser.add_argument("--batch_size", "-b", type=int, help="Batch size", default=1000000)
@@ -1123,8 +1142,8 @@ def main():
     parser.add_argument("--quality_per_probe", "-qpp", action="store_true", help="Calculate quality per probe")
     parser.add_argument("--h5_x_colname", "-h5x", type=str, help="X column name in h5ad file", default="x")
     parser.add_argument("--h5_y_colname", "-h5y", type=str, help="Y column name in h5ad file", default="y")
-    parser.add_argument("--move_x","-mx", type=int, help="Move x", default=0)
-    parser.add_argument("--move_y","-my", type=int, help="Move y", default=0)
+    parser.add_argument("--move_x","-mx", type=float, help="Move x", default=0.0)
+    parser.add_argument("--move_y","-my", type=float, help="Move y", default=0.0)
     parser.add_argument("--coord_to_um_conversion","-ctu", type=float, help="Conversion factor from coordinates to microns", default=1.0)
     parser.add_argument("--spot_diameter","-sd", type=float, help="Spot diameter", default=None)
     parser.add_argument("-v", "--verbose", action="store_true", help="Print out script purpose and parameters")
@@ -1140,21 +1159,30 @@ def main():
         sys.exit(0)
     
 
-    generate_pv(csv_file=args.csv_file,img_file_path=args.img_file_path,
-                hexagon_size=args.hexagon_size, output_path=args.output_path, 
+    generate_pv(csv_file=args.csv_file,
+                img_file_path=args.img_file_path,
+                hexagon_size=args.hexagon_size,
+                output_path=args.output_path, 
                 batch_size=args.batch_size,
                 alignment_matrix_file=args.alignment_matrix_file, 
-                project_name=args.project_name,image_pixels_per_um=args.image_pixels_per_um, 
-                tissue_hires_scalef=args.tissue_hires_scalef,technology=args.technology, 
-                feature_colname=args.feature_colname, x_colname=args.x_colname, 
-                y_colname=args.y_colname,cell_id_colname=args.cell_id_colname,
-                pixel_to_micron=args.pixel_to_micron,max_workers=args.mw,
-                quality_colname=args.quality_colname,quality_filter=args.quality_filter,
+                project_name=args.project_name,
+                image_pixels_per_um=args.image_pixels_per_um, 
+                tissue_hires_scalef=args.tissue_hires_scalef,
+                technology=args.technology, 
+                feature_colname=args.feature_colname,
+                x_colname=args.x_colname, 
+                y_colname=args.y_colname,
+                cell_id_colname=args.cell_id_colname,
+                pixel_to_micron=args.pixel_to_micron,
+                max_workers=args.mw,
+                quality_colname=args.quality_colname,
+                quality_filter=args.quality_filter,
                 count_colname=args.count_colname,
                 smoothing=args.smoothing,
                 quality_per_hexagon=args.quality_per_hexagon,
                 quality_per_probe=args.quality_per_probe,
-                h5_x_colname=args.h5_x_colname,h5_y_colname=args.h5_y_colname,
+                h5_x_colname=args.h5_x_colname,
+                h5_y_colname=args.h5_y_colname,
                 move_x=args.move_x,move_y=args.move_y,
                 coord_to_um_conversion=args.coord_to_um_conversion,
                 visium_hd_folder=args.visium_hd_folder,

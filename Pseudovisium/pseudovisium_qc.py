@@ -27,6 +27,18 @@ warnings.filterwarnings("ignore",category=FutureWarning)
 
 
 def generate_qc_report(folders, output_folder=os.getcwd(), gene_names=["RYR3", "AQP4", "THBS1"], include_morans_i=False,max_workers=4,normalisation=False,save_plots=False):
+    """
+    Generate a QC report for Pseudovisium output.
+
+    Args:
+        folders (list): List of folders containing Pseudovisium output.
+        output_folder (str, optional): Output folder path. Defaults to current working directory.
+        gene_names (list, optional): List of gene names to plot. Defaults to ["RYR3", "AQP4", "THBS1"].
+        include_morans_i (bool, optional): Include Moran's I features tab. Defaults to False.
+        max_workers (int, optional): Number of workers to use for parallel processing. Defaults to 4.
+        normalisation (bool, optional): Normalise the counts by the total counts per cell. Defaults to False.
+        save_plots (bool, optional): Save generated plots as publication ready figures. Defaults to False.
+    """
 
     if save_plots:
         print("Plots will be saved")
@@ -303,7 +315,24 @@ def generate_qc_report(folders, output_folder=os.getcwd(), gene_names=["RYR3", "
         print("HTML file generated successfully!")
 
 def generate_dashboard_html(replicates_data, gene_names, include_morans_i,quality_per_hexagon,quality_per_probe,cell_info,normalisation=False,save_plots=False,output_folder=os.getcwd()):
-    #AS A START PRINT VALUES OF include_morans_i, quality_per_hexagon etc.
+    """
+    Generate the HTML code for the QC report dashboard.
+
+    Args:
+        replicates_data (list): List of dictionaries containing data for each replicate.
+        gene_names (list): List of gene names to plot.
+        include_morans_i (bool): Include Moran's I features tab.
+        quality_per_hexagon (bool): Include quality per hexagon plots.
+        quality_per_probe (bool): Include quality per probe plots.
+        cell_info (bool): Include cell information plots.
+        normalisation (bool, optional): Normalise the counts by the total counts per cell. Defaults to False.
+        save_plots (bool, optional): Save generated plots as publication ready figures. Defaults to False.
+        output_folder (str, optional): Output folder path. Defaults to current working directory.
+
+    Returns:
+        str: Generated HTML code for the QC report dashboard.
+    """
+
     print("include_morans_i: ",include_morans_i)
     print("quality_per_hexagon: ",quality_per_hexagon)
     print("quality_per_probe: ",quality_per_probe)
@@ -1018,6 +1047,16 @@ def generate_dashboard_html(replicates_data, gene_names, include_morans_i,qualit
 
 
 def not_working_probe_based_on_sum(matrix_joined,sample_id="Sample1"):
+    """
+    Identify probes that are not working based on their sum counts.
+
+    Args:
+        matrix_joined (pandas.DataFrame): Joined matrix containing probe information.
+        sample_id (str, optional): Sample ID. Defaults to "Sample1".
+
+    Returns:
+        pandas.DataFrame: DataFrame with probe categories (Good, Bad, Neg_control) based on sum counts.
+    """
     grouped_matrix = matrix_joined.groupby("Gene_ID_y")["Counts"].sum()
     #where index has control|blank|Control|Blank|BLANK in it
     grouped_matrix_neg_probes = grouped_matrix[grouped_matrix.index.str.contains("control|ctrl|pos|NegPrb|neg|Ctrl|blank|Control|Blank|BLANK")]
@@ -1053,6 +1092,21 @@ def not_working_probe_based_on_sum(matrix_joined,sample_id="Sample1"):
 
 
 def probe_stripplot(plot_df, col_to_plot="log_counts", sample_id="Sample 1", legend=False,save_plot=False,output_folder=None):
+    """
+    Generate a stripplot of probe counts or quality scores.
+
+    Args:
+        plot_df (pandas.DataFrame): DataFrame containing probe information.
+        col_to_plot (str, optional): Column to plot. Defaults to "log_counts".
+        sample_id (str, optional): Sample ID. Defaults to "Sample 1".
+        legend (bool, optional): Whether to include a legend. Defaults to False.
+        save_plot (bool, optional): Whether to save the plot. Defaults to False.
+        output_folder (str, optional): Output folder for saving the plot. Defaults to None.
+
+    Returns:
+        str: HTML code for the generated stripplot.
+    """
+    
     fig, ax = plt.subplots(figsize=(2, 2.5))
     # Define jitter amount
     jitter = 0.1
@@ -1119,6 +1173,17 @@ def probe_stripplot(plot_df, col_to_plot="log_counts", sample_id="Sample 1", leg
     return html_fig
 
 def not_working_probe_based_on_quality(probe_quality, sample_id="Sample1"):
+    """
+    Identify probes that are not working based on their quality scores.
+
+    Args:
+        probe_quality (pandas.DataFrame): DataFrame containing probe quality information.
+        sample_id (str, optional): Sample ID. Defaults to "Sample1".
+
+    Returns:
+        pandas.DataFrame: DataFrame with probe categories (Good, Bad, Neg_control) based on quality scores.
+    """
+    
     probe_quality_neg_probes = probe_quality[probe_quality["Probe_ID"].str.contains("control|ctrl|pos|NegPrb|neg|Ctrl|blank|Control|Blank|BLANK")]
     probe_quality_true_probes = probe_quality[~probe_quality["Probe_ID"].str.contains("control|ctrl|pos|NegPrb|neg|Ctrl|blank|Control|Blank|BLANK")]
     plot_df = probe_quality.reset_index(drop=True)
@@ -1145,7 +1210,16 @@ def not_working_probe_based_on_quality(probe_quality, sample_id="Sample1"):
 
 
 def not_working_probe_based_on_morans_i(morans_table, sample_id="Sample1"):
-    
+    """
+    Identify probes that are not working based on their Moran's I values.
+
+    Args:
+        morans_table (pandas.DataFrame): DataFrame containing Moran's I values for each probe.
+        sample_id (str, optional): Sample ID. Defaults to "Sample1".
+
+    Returns:
+        pandas.DataFrame: DataFrame with probe categories (Good, Bad, Neg_control) based on Moran's I values.
+    """
     morans_table_neg_probes = morans_table[morans_table.gene.str.contains("control|ctrl|pos|NegPrb|neg|Ctrl|blank|Control|Blank|BLANK")]
     morans_table_true_probes = morans_table[~morans_table.gene.str.contains("control|ctrl|pos|NegPrb|neg|Ctrl|blank|Control|Blank|BLANK")]     
 
@@ -1175,17 +1249,45 @@ def not_working_probe_based_on_morans_i(morans_table, sample_id="Sample1"):
 
 
 def get_unique_features_per_hexagon(matrix_joined):
+    """
+    Calculate the number of unique features per hexagon.
+
+    Args:
+        matrix_joined (pandas.DataFrame): Joined matrix containing probe information.
+
+    Returns:
+        pandas.DataFrame: DataFrame with the number of unique features per hexagon.
+    """
     unique_features_per_hexagon = matrix_joined.groupby(['x', 'y'])['Gene_ID_y'].nunique().reset_index()
     unique_features_per_hexagon = unique_features_per_hexagon.rename(columns={"Gene_ID_y": "counts"})
     return unique_features_per_hexagon
 
 
 def get_total_counts_per_hexagon(matrix_joined):
+    
+    """
+    Calculate the total counts per hexagon.
+
+    Args:
+        matrix_joined (pandas.DataFrame): Joined matrix containing probe information.
+
+    Returns:
+        pandas.DataFrame: DataFrame with the total counts per hexagon.
+    """
     total_counts_per_hexagon = matrix_joined.groupby(['x', 'y'])['Counts'].sum().reset_index()
     total_counts_per_hexagon = total_counts_per_hexagon.rename(columns={"Counts": "counts"})
     return total_counts_per_hexagon
 
 def get_quality_per_hexagon(matrix_joined):
+    """
+    Calculate the quality score per hexagon.
+
+    Args:
+        matrix_joined (pandas.DataFrame): Joined matrix containing probe information.
+
+    Returns:
+        pandas.DataFrame: DataFrame with the quality score per hexagon.
+    """
     hexagon_quality = matrix_joined.groupby("Barcode_ID").agg({"Quality":"first","x":"first","y":"first"})
     hexagon_quality = hexagon_quality.reset_index()
     #rename Quality to counts
@@ -1195,6 +1297,18 @@ def get_quality_per_hexagon(matrix_joined):
 
 # Functions used in generate_qc_report
 def get_df_for_gene(matrix_joined, tissue_positions_list, gene_name, normalised=False):
+    """
+    Get a DataFrame for a specific gene.
+
+    Args:
+        matrix_joined (pandas.DataFrame): Joined matrix containing probe information.
+        tissue_positions_list (pandas.DataFrame): DataFrame containing tissue positions.
+        gene_name (str): Name of the gene to retrieve.
+        normalised (bool, optional): Whether to normalize the counts. Defaults to False.
+
+    Returns:
+        pandas.DataFrame: DataFrame containing information for the specified gene.
+    """
     matrix_subset = matrix_joined[matrix_joined["Gene_ID_y"] == gene_name]
     matrix_subset.reset_index(drop=True, inplace=True)
     x = tissue_positions_list["x"]
@@ -1217,6 +1331,23 @@ def get_df_for_gene(matrix_joined, tissue_positions_list, gene_name, normalised=
 
 
 def hexagon_plot_to_html(hexagon_df, hexagon_size, image_pixels_per_um, gene_name, dataset_name,morans_i=None,save_plot=False,output_folder=None):
+    """
+    Generate an HTML hexagon plot for a specific gene.
+
+    Args:
+        hexagon_df (pandas.DataFrame): DataFrame containing hexagon information.
+        hexagon_size (float): Size of the hexagons.
+        image_pixels_per_um (float): Number of image pixels per micrometer.
+        gene_name (str): Name of the gene being plotted.
+        dataset_name (str): Name of the dataset.
+        morans_i (float, optional): Moran's I value for the gene. Defaults to None.
+        save_plot (bool, optional): Whether to save the plot. Defaults to False.
+        output_folder (str, optional): Output folder for saving the plot. Defaults to None.
+
+    Returns:
+        str: HTML code for the generated hexagon plot.
+    """
+    
     fig, ax = plt.subplots(figsize=(3, 2.5))
     sc = ax.scatter(hexagon_df["x"], hexagon_df["y"], c=hexagon_df["counts"], cmap="viridis", s=2, alpha=0.6)
     for hx, hy in zip(hexagon_df["x"], hexagon_df["y"]):
@@ -1256,6 +1387,15 @@ def hexagon_plot_to_html(hexagon_df, hexagon_size, image_pixels_per_um, gene_nam
 
 
 def get_probe_sums(matrix_joined):
+    """
+    Calculate the sum of counts for each probe.
+
+    Args:
+        matrix_joined (pandas.DataFrame): Joined matrix containing probe information.
+
+    Returns:
+        pandas.DataFrame: DataFrame with the sum of counts for each probe.
+    """
     sums = matrix_joined.groupby("Gene_ID_y").sum()
     sums["Counts"] = np.log10(sums["Counts"])
     sums = sums[["Counts"]]
@@ -1264,6 +1404,20 @@ def get_probe_sums(matrix_joined):
 
 
 def plot_sums_to_html(sums1, sums2, dataset1_name, dataset2_name,save_plot=False,output_folder=None):
+    """
+    Generate an HTML plot comparing probe sums between two datasets.
+
+    Args:
+        sums1 (pandas.DataFrame): DataFrame containing probe sums for the first dataset.
+        sums2 (pandas.DataFrame): DataFrame containing probe sums for the second dataset.
+        dataset1_name (str): Name of the first dataset.
+        dataset2_name (str): Name of the second dataset.
+        save_plot (bool, optional): Whether to save the plot. Defaults to False.
+        output_folder (str, optional): Output folder for saving the plot. Defaults to None.
+
+    Returns:
+        str: HTML code for the generated plot comparing probe sums.
+    """
     common_probes = list(set(sums1["Gene_ID_y"]) & set(sums2["Gene_ID_y"]))
 
     if len(common_probes) < 20:
@@ -1328,6 +1482,17 @@ def plot_sums_to_html(sums1, sums2, dataset1_name, dataset2_name,save_plot=False
 
 
 def plot_abundance_correlation_heatmap(replicates_data,save_plot=False,output_folder=None):
+    """
+    Generate an HTML heatmap plot showing the correlation of probe abundances between datasets.
+
+    Args:
+        replicates_data (list): List of dictionaries containing data for each replicate.
+        save_plot (bool, optional): Whether to save the plot. Defaults to False.
+        output_folder (str, optional): Output folder for saving the plot. Defaults to None.
+
+    Returns:
+        str: HTML code for the generated abundance correlation heatmap.
+    """
     # Calculate the sums of features for each replicate
     sums_data = []
     replicate_names = []
@@ -1377,6 +1542,18 @@ def plot_abundance_correlation_heatmap(replicates_data,save_plot=False,output_fo
 
 
 def get_df_for_gene(matrix_joined, tissue_positions_list, gene_name, normalised=False):
+    """
+    Get a DataFrame for a specific gene.
+
+    Args:
+        matrix_joined (pandas.DataFrame): Joined matrix containing probe information.
+        tissue_positions_list (pandas.DataFrame): DataFrame containing tissue positions.
+        gene_name (str): Name of the gene to retrieve.
+        normalised (bool, optional): Whether to normalize the counts. Defaults to False.
+
+    Returns:
+        pandas.DataFrame: DataFrame containing information for the specified gene.
+    """
     matrix_subset = matrix_joined[matrix_joined["Gene_ID_y"] == gene_name]
     matrix_subset.reset_index(drop=True, inplace=True)
     x = tissue_positions_list["x"]
@@ -1398,6 +1575,17 @@ def get_df_for_gene(matrix_joined, tissue_positions_list, gene_name, normalised=
 
 
 def process_gene(gene, matrix_joined, tissue_positions_list):
+    """
+    Process a gene to calculate its Moran's I value.
+
+    Args:
+        gene (str): Name of the gene to process.
+        matrix_joined (pandas.DataFrame): Joined matrix containing probe information.
+        tissue_positions_list (pandas.DataFrame): DataFrame containing tissue positions.
+
+    Returns:
+        dict: Dictionary containing the gene name and its Moran's I value.
+    """
     gene_df = get_df_for_gene(matrix_joined, tissue_positions_list, gene, normalised=True)
     points = [Point(xy) for xy in zip(gene_df['x'], gene_df['y'])]
     gene_gdf = gpd.GeoDataFrame(gene_df, geometry=points)
@@ -1407,6 +1595,19 @@ def process_gene(gene, matrix_joined, tissue_positions_list):
     return {"gene": gene, "Morans_I": mi.I}
 
 def get_morans_i(gene_name, matrix_joined, tissue_positions_list, max_workers=4):
+    """
+    Calculate Moran's I values for a specific gene or for all genes.
+
+    Args:
+        gene_name (str): Name of the gene to calculate Moran's I for. Use "all" to calculate for all genes.
+        matrix_joined (pandas.DataFrame): Joined matrix containing probe information.
+        tissue_positions_list (pandas.DataFrame): DataFrame containing tissue positions.
+        max_workers (int, optional): Number of workers to use for parallel processing. Defaults to 4.
+
+    Returns:
+        pandas.DataFrame or float: If gene_name is "all", returns a DataFrame with Moran's I values for all genes.
+                                   If gene_name is a specific gene, returns the Moran's I value for that gene.
+    """
 
     if gene_name == "all":
         unique_genes = matrix_joined["Gene_ID_y"].unique()
@@ -1481,6 +1682,20 @@ def get_morans_i(gene_name, matrix_joined, tissue_positions_list, max_workers=4)
 
 
 def plot_morans_i_to_html(morans_i1, morans_i2, dataset1_name, dataset2_name,save_plot=False,output_folder=None):
+    """
+    Generate an HTML plot comparing Moran's I values between two datasets.
+
+    Args:
+        morans_i1 (pandas.DataFrame): DataFrame containing Moran's I values for the first dataset.
+        morans_i2 (pandas.DataFrame): DataFrame containing Moran's I values for the second dataset.
+        dataset1_name (str): Name of the first dataset.
+        dataset2_name (str): Name of the second dataset.
+        save_plot (bool, optional): Whether to save the plot. Defaults to False.
+        output_folder (str, optional): Output folder for saving the plot. Defaults to None.
+
+    Returns:
+        str: HTML code for the generated plot comparing Moran's I values.
+    """
     common_probes = list(set(morans_i1["gene"]) & set(morans_i2["gene"]))
     if len(common_probes) < 20:
         fig, ax = plt.subplots(figsize=(4, 4))
@@ -1538,6 +1753,17 @@ def plot_morans_i_to_html(morans_i1, morans_i2, dataset1_name, dataset2_name,sav
 
 
 def plot_morans_i_correlation_heatmap(replicates_data, save_plot=False,output_folder=None):
+    """
+    Generate an HTML heatmap plot showing the correlation of Moran's I values between datasets.
+
+    Args:
+        replicates_data (list): List of dictionaries containing data for each replicate.
+        save_plot (bool, optional): Whether to save the plot. Defaults to False.
+        output_folder (str, optional): Output folder for saving the plot. Defaults to None.
+
+    Returns:
+        str: HTML code for the generated Moran's I correlation heatmap.
+    """
     #get the morans i for each dataset
     morans_i_data = []
     replicate_names = []
@@ -1585,6 +1811,9 @@ def plot_morans_i_correlation_heatmap(replicates_data, save_plot=False,output_fo
 
 
 def main():
+    """
+    Main function to parse command-line arguments and generate the QC report.
+    """
     parser = argparse.ArgumentParser(description="Generate QC report for Pseudovisium output.")
     parser.add_argument("--folders", "-f", nargs="+", help="List of folders containing Pseudovisium output", required=True)
     parser.add_argument("--output_folder", "-o", default="/Users/k23030440/", help="Output folder path")

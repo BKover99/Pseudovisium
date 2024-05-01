@@ -2,7 +2,7 @@
 from setuptools import setup, find_packages
 
 
-VERSION = '0.0.8'
+VERSION = '0.0.9'
 DESCRIPTION = 'Python package for hexagonal binning of high-resolution spatial transcriptomic data'
 LONG_DESCRIPTION = 'Python package for hexagonal binning of high-resolution spatial transcriptomic data, for more information see https://github.com/BKover99/pseudovisium'
 
@@ -14,7 +14,25 @@ setup(
     author_email="<kover.bence@gmail.com>",
     description=DESCRIPTION,
     packages=find_packages(),
-    install_requires=['numpy','pandas', 'scanpy', 'squidpy', 'matplotlib'],
+    install_requires=[
+    'numpy',
+    'pandas',
+    'scipy',
+    'scanpy',
+    'squidpy',
+    'matplotlib',
+    'opencv-python',
+    'h5py',
+    'anndata',
+    'tifffile',
+    'tqdm',
+    'pysal',
+    'geopandas',
+    'seaborn',
+    'adjustText',
+    'shapely'
+        ],
+
     keywords=['spatial', 'transcriptomics', 'visium', 'xenium', 'cosmx'],
     classifiers=[
         "Development Status :: 1 - Planning",
