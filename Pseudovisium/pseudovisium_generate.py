@@ -416,12 +416,12 @@ def process_csv_file(csv_file, hexagon_size, batch_size=1000000, technology="Xen
         count_colname= "NA"
         coord_to_um_conversion = 1
 
-    elif technology == "Nanostring":
+    elif (technology == "Nanostring") or (technology == "CosMx"): 
         print("Technology is Nanostring. Going forward with default column names.")
         x_colname = "x_global_px"
         y_colname = "y_global_px"
         feature_colname = "target"
-        cell_id_colname = "cell"
+        cell_id_colname = "cell_ID"
         count_colname= "NA"
         coord_to_um_conversion = 0.12028
         #see ref https://smi-public.objects.liquidweb.services/cosmx-wtx/Pancreas-CosMx-ReadMe.html
