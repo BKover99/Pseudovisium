@@ -860,6 +860,11 @@ def create_pseudovisium(
         print("No quality information provided. Skipping quality information files.")
     else:
         print("Creating quality_per_probe.csv file in spatial folder.")
+        #map back probe_quality indices to unique_features
+        #iterate through its keys, and rename it 
+        for key in list(probe_quality.keys()):
+            probe_quality[unique_features[key]] = probe_quality.pop(key)
+
         with open(folderpath + "/spatial/quality_per_probe.csv", "w", newline="") as f:
             writer = csv.writer(f)
             for probe, quality_dict in probe_quality.items():
