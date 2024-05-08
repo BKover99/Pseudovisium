@@ -259,11 +259,12 @@ def process_batch(
 
     # read in file with pandas
     df_batch = pd.read_csv(batch_file)
-    if quality_filter:
-        df_batch = df_batch[df_batch[quality_colname] > 20]
-
+    
+    #adjusting coordinates
     df_batch[x_colname] = (df_batch[x_colname]) * coord_to_um_conversion
     df_batch[y_colname] = (df_batch[y_colname]) * coord_to_um_conversion
+    
+    #smoothing, generally only for Visium HD or Curio
     if smoothing != False:
         for i, j in zip(
             [smoothing, smoothing, -smoothing, -smoothing],
@@ -278,7 +279,7 @@ def process_batch(
         # remove first df_batch_changed length rows
         df_batch = df_batch.iloc[df_batch_changed.shape[0] :]
 
-    # based on x and y column, apply closest_hex
+    # based on x and y column, apply closest_hex. If spot_diameter is set, then use that to recapitulate raw visium
     hexagons = np.array(
         [
             str(closest_hex(x, y, hexagon_size, spot_diameter))
@@ -302,6 +303,28 @@ def process_batch(
 
     df_batch["counts"] = counts
 
+
+    if quality_per_hexagon == True:
+        # create hexagon_quality from df_batch
+        hexagon_quality = df_batch.groupby("hexagons")[quality_colname].agg(
+            ["mean", "count"]
+        )
+        hexagon_quality = hexagon_quality.to_dict(orient="index")
+        
+
+    if quality_per_probe == True:
+        # create probe_quality from df_batch
+        probe_quality = df_batch.groupby(feature_colname)[quality_colname].agg(
+            ["mean", "count"]
+        )
+        probe_quality = probe_quality.to_dict(orient="index")
+        
+        
+
+    if quality_filter:
+        df_batch = df_batch[df_batch[quality_colname] > 20]
+
+
     hexagon_counts = (
         df_batch[["hexagons", feature_colname, "counts"]]
         .groupby(["hexagons", feature_colname])
@@ -310,6 +333,10 @@ def process_batch(
     )
 
     returning_items = [hexagon_counts]
+
+   
+    
+
 
     if cell_id_colname != "None":
         # create heaxgon_cell_counts from df_batch
@@ -329,20 +356,10 @@ def process_batch(
         returning_items.append(transformed_dict)
 
     if quality_per_hexagon == True:
-        # create hexagon_quality from df_batch
-        hexagon_quality = df_batch.groupby("hexagons")[quality_colname].agg(
-            ["mean", "count"]
-        )
-        hexagon_quality = hexagon_quality.to_dict(orient="index")
         returning_items.append(hexagon_quality)
-
     if quality_per_probe == True:
-        # create probe_quality from df_batch
-        probe_quality = df_batch.groupby(feature_colname)[quality_colname].agg(
-            ["mean", "count"]
-        )
-        probe_quality = probe_quality.to_dict(orient="index")
         returning_items.append(probe_quality)
+    
     return tuple(returning_items)
 
 
@@ -494,7 +511,7 @@ def process_csv_file(
         x_colname = "x"
         y_colname = "y"
         feature_colname = "gene"
-        # cell_id_colname = "barcode"
+        cell_id_colname = "barcode"
         count_colname = "count"
         coord_to_um_conversion = 1
 
