@@ -1089,7 +1089,7 @@ def anndata_to_df(
         tuple: A tuple containing the converted DataFrame and the image resolution or scale.
     """
 
-    if technology == "Visium_HD":
+    if (technology == "Visium_HD") or (technology == "VisiumHD") or (technology == "Visium HD"):
         # get image resolution of the hires image
         image_resolution = (
             scalefactors["microns_per_pixel"] / scalefactors["tissue_hires_scalef"]
