@@ -334,10 +334,6 @@ def process_batch(
 
     returning_items = [hexagon_counts]
 
-   
-    
-
-
     if cell_id_colname != "None":
         # create heaxgon_cell_counts from df_batch
         hexagon_cell_counts = (
@@ -917,7 +913,7 @@ def create_pseudovisium(
     with open(folderpath + "/matrix.mtx", "wb") as f:
         scipy.io.mmwrite(
             f,
-            hexagon_counts,
+            hexagon_counts.T,
             comment='metadata_json: {"software_version": "Pseudovisium", "format_version": 1}\n',
         )
 
@@ -1062,7 +1058,7 @@ def read_files(folder, technology):
                           or an AnnData object (for Curio).
     """
 
-    if technology == "Visium_HD":
+    if (technology == "Visium_HD") or (technology == "VisiumHD") or (technology == "Visium HD"):
         scalefactors = json.load(open(folder + "/spatial/scalefactors_json.json"))
         tissue_pos = pd.read_parquet(folder + "/spatial/tissue_positions.parquet")
         fb_matrix = sc.read_10x_h5(folder + "/filtered_feature_bc_matrix.h5")
@@ -1071,7 +1067,7 @@ def read_files(folder, technology):
         # find file ending with .h5ad in folder
         folder_files = os.listdir(folder)
         h5ad_file = [file for file in folder_files if file.endswith(".h5ad")][0]
-        adata = sc.read(folder + h5ad_file)
+        adata = sc.read_h5ad(folder + h5ad_file)
         return adata
 
 
