@@ -1175,7 +1175,7 @@ def visium_hd_curio_to_transcripts(folder, output, technology, x_col=None, y_col
         float: The image resolution (pixels per micrometer) for Visium HD, or the scale for Curio.
     """
 
-    if technology == "Visium_HD":
+    if (technology == "Visium_HD") or (technology == "VisiumHD") or (technology == "Visium HD"):
         scalefactors, tissue_pos, fb_matrix = read_files(folder, technology)
         df, image_resolution = anndata_to_df(
             adata=fb_matrix,
@@ -1262,7 +1262,7 @@ def generate_pv(
 
         start = time.time()
 
-        if technology == "Visium_HD":
+        if (technology == "Visium_HD") or (technology == "VisiumHD") or (technology == "Visium HD"):
             print(
                 "Technology is Visium_HD. Generating transcripts.csv file from Visium HD files."
             )
