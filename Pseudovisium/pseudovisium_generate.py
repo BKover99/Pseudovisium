@@ -309,7 +309,13 @@ def process_batch(
         hexagon_quality = df_batch.groupby("hexagons")[quality_colname].agg(
             ["mean", "count"]
         )
-        hexagon_quality = hexagon_quality.to_dict(orient="index")
+        print(f"Type of hexagon_quality: {type(hexagon_quality)}")
+        print(hexagon_quality)
+        if isinstance(hexagon_quality, pd.DataFrame):
+            hexagon_quality = hexagon_quality.to_dict(orient="index")
+        else:
+            print("hexagon_quality is not a DataFrame. Skipping conversion to dictionary.")
+            
         
 
     if quality_per_probe == True:
@@ -317,7 +323,12 @@ def process_batch(
         probe_quality = df_batch.groupby(feature_colname)[quality_colname].agg(
             ["mean", "count"]
         )
-        probe_quality = probe_quality.to_dict(orient="index")
+        if isinstance(probe_quality, pd.DataFrame):
+            probe_quality = probe_quality.to_dict(orient="index")
+        else:
+            print("probe_quality is not a DataFrame. Skipping conversion to dictionary.")
+            print(f"Type of probe_quality: {type(probe_quality)}")
+            print(probe_quality)
         
         
 
@@ -595,10 +606,10 @@ def process_csv_file(
     hexagon_counts["hexagon_id"] = hexagon_counts["hexagons"].map(
         {hexagon: i for i, hexagon in enumerate(unique_hexagons)}
     )
-
-    hexagon_cell_counts["hexagon_id"] = hexagon_cell_counts["hexagons"].map(
-        {hexagon: i for i, hexagon in enumerate(unique_hexagons)}
-    )
+    if cell_id_colname != "None":
+        hexagon_cell_counts["hexagon_id"] = hexagon_cell_counts["hexagons"].map(
+            {hexagon: i for i, hexagon in enumerate(unique_hexagons)}
+        )
 
     hexagon_counts = scipy.sparse.csr_matrix(
         (
@@ -755,9 +766,6 @@ def create_pseudovisium(
         print("No cell information provided. Skipping cell information files.")
     else:
         print("Creating pv_cell_hex.csv file in spatial folder.")
-        #rearrange cols as cell_id, hexagon_id, counts
-        print(hexagon_cell_counts.head(5))
-        print(cell_id_colname)
         hexagon_cell_counts = hexagon_cell_counts[[cell_id_colname, "hexagon_id", "counts"]]
         #add 1 to hexagon_ids
         hexagon_cell_counts["hexagon_id"] = hexagon_cell_counts["hexagon_id"] + 1
