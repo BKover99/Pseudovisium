@@ -94,7 +94,7 @@ def generate_qc_report(folders, output_folder=os.getcwd(), gene_names=["RYR3", "
         if cell_info:
             pv_cell_hex = pd.read_csv(folder + "spatial/pv_cell_hex.csv", header=None)
             pv_cell_hex.columns = ["Cell_ID", "Hexagon_ID", "Count"]
-            pv_cell_hex["Hexagon_ID"] = pv_cell_hex["Hexagon_ID"] + 1
+            pv_cell_hex["Hexagon_ID"] = pv_cell_hex["Hexagon_ID"]
 
 
 
@@ -187,6 +187,7 @@ def generate_qc_report(folders, output_folder=os.getcwd(), gene_names=["RYR3", "
         replicate_data = {
             "dataset_name": dataset_name,
             "metrics_table_data": {
+                "Total transcripts": int(total_counts),
                 "Number of hexagons with at least 100 counts": int(number_of_hex_above_100),
                 "Number of genes in at least 5% of hexagons": int(pct5_plex),
                 "Median counts per hexagon": int(median_counts),
@@ -219,6 +220,7 @@ def generate_qc_report(folders, output_folder=os.getcwd(), gene_names=["RYR3", "
             replicate_data["morans_i_stripplot_df"] = plot_df_morans_i
 
         if cell_info:
+            replicate_data["metrics_table_data"]["Total number of cells"] = len(pv_cell_hex["Cell_ID"].unique())
             replicate_data["metrics_table_data"]["Median density (cells per hexagon)"] = int(median_cells_per_hex)
             replicate_data["metrics_table_data"]["Median counts per cell"] = int(median_counts_per_cell)
             replicate_data["metrics_table_data"]["Median pct unassigned"] = np.round(median_unassigned_pct, 5)
@@ -274,8 +276,6 @@ def generate_qc_report(folders, output_folder=os.getcwd(), gene_names=["RYR3", "
         output = output_folder + "qc_report_" + str(datetime.datetime.now().date()) + "_" + str(i) + ".html"
         i+=1
         
-    
-    
     #in the same output folder generate a folder called pv_qc_ date
     data_output_folder = output_folder + "pv_qc_" + str(datetime.datetime.now().date())
     #if that dir exists_ add a number to the end
@@ -349,18 +349,27 @@ def generate_dashboard_html(replicates_data, gene_names, include_morans_i,qualit
     """
     for replicate_data in replicates_data:
         metrics_html += f"""
-                        <th>{replicate_data['dataset_name']}</th>
+                            <th>{replicate_data['dataset_name']}</th>
         """
     metrics_html += """
-                    </tr>
-                </thead>
-                <tbody>
-                    <tr>
-                        <td>Median counts per hexagon</td>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr>
+                            <td>Total transcripts</td>
         """
     for replicate_data in replicates_data:
         metrics_html += f"""
-                        <td>{replicate_data['metrics_table_data']['Median counts per hexagon']}</td>
+                            <td>{replicate_data['metrics_table_data']['Total transcripts']}</td>
+        """
+    metrics_html += """
+                        </tr>
+                        <tr>
+                            <td>Median counts per hexagon</td>
+        """
+    for replicate_data in replicates_data:
+        metrics_html += f"""
+                            <td>{replicate_data['metrics_table_data']['Median counts per hexagon']}</td>
         """
     metrics_html += """
                     </tr>
@@ -517,26 +526,35 @@ def generate_dashboard_html(replicates_data, gene_names, include_morans_i,qualit
 
     if cell_info:
         metrics_html += """
-            <h2>Cell Info Table</h2>
-            <table>
-                <thead>
-                    <tr>
-                        <th>Metric</th>
+                <h2>Cell Info Table</h2>
+                <table>
+                    <thead>
+                        <tr>
+                            <th>Metric</th>
         """
         for replicate_data in replicates_data:
             metrics_html += f"""
-                        <th>{replicate_data['dataset_name']}</th>
+                            <th>{replicate_data['dataset_name']}</th>
             """
         metrics_html += """
-                    </tr>
-                </thead>
-                <tbody>
-                    <tr>
-                        <td>Median counts per cell</td>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr>
+                            <td>Total number of cells</td>
         """
         for replicate_data in replicates_data:
             metrics_html += f"""
-                        <td>{replicate_data['metrics_table_data'].get('Median counts per cell', 'N/A')}</td>
+                            <td>{replicate_data['metrics_table_data'].get('Total number of cells', 'N/A')}</td>
+            """
+        metrics_html += """
+                        </tr>
+                        <tr>
+                            <td>Median counts per cell</td>
+        """
+        for replicate_data in replicates_data:
+            metrics_html += f"""
+                            <td>{replicate_data['metrics_table_data'].get('Median counts per cell', 'N/A')}</td>
             """
         metrics_html += """
                     </tr>

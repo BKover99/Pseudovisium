@@ -335,21 +335,13 @@ def process_batch(
     returning_items = [hexagon_counts]
 
     if cell_id_colname != "None":
-        # create heaxgon_cell_counts from df_batch
-        hexagon_cell_counts = (
-            df_batch.groupby(["hexagons", cell_id_colname])[count_colname].sum()
-            if count_colname != "NA"
-            else df_batch.groupby(["hexagons", cell_id_colname]).size()
-        )
-        # make a dict
-        hexagon_cell_counts = hexagon_cell_counts.to_dict()
-        transformed_dict = {}
-        for (key1, key2), value in hexagon_cell_counts.items():
-            if key1 not in transformed_dict:
-                transformed_dict[key1] = {}
-            transformed_dict[key1][key2] = value
+        hexagon_cell_counts= (
+        df_batch[["hexagons", cell_id_colname, "counts"]]
+        .groupby(["hexagons", cell_id_colname])
+        .aggregate({"counts": "sum"})
+        .reset_index())
 
-        returning_items.append(transformed_dict)
+        returning_items.append(hexagon_cell_counts)
 
     if quality_per_hexagon == True:
         returning_items.append(hexagon_quality)
@@ -463,10 +455,6 @@ def process_csv_file(
             "Visium-like spots are going to be used rather than hexagonal tesselation!!!"
         )
 
-    hexagon_cell_counts = {}
-    hexagon_quality = {}
-    probe_quality = {}
-    # create a nested dict called hexagon quality, with two keys for each hexagon, one for the quality score and one for the count
 
     if technology == "Xenium":
         print("Technology is Xenium. Going forward with default column names.")
@@ -500,7 +488,7 @@ def process_csv_file(
         # Whereas old smi output seems to be 0.18
         # https://nanostring-public-share.s3.us-west-2.amazonaws.com/SMI-Compressed/SMI-ReadMe.html
 
-    elif technology == "Visium_HD":
+    elif (technology == "Visium_HD") or (technology == "VisiumHD") or (technology == "Visium HD"):
         print(
             "Technology is Visium_HD. Going forward with pseudovisium processed colnames."
         )
@@ -547,7 +535,12 @@ def process_csv_file(
     tmp_dir, num_batches, unique_features = preprocess_csv(
         csv_file, batch_size, fieldnames, feature_colname
     )
+
+    hexagon_quality = {}
+    probe_quality = {}
     hexagon_counts = pd.DataFrame()
+    hexagon_cell_counts = pd.DataFrame()
+
 
     batch_files = [os.path.join(tmp_dir, f"batch_{i}.csv") for i in range(num_batches)]
     n_process = min(max_workers, multiprocessing.cpu_count())
@@ -595,26 +588,15 @@ def process_csv_file(
 
                 if cell_id_colname != "None":
                     batch_hexagon_cell_counts = all_res[1]
-                    for (
-                        hexagon_cell_counts_hex,
-                        cell_counts,
-                    ) in batch_hexagon_cell_counts.items():
-                        for cell_id, cell_count in cell_counts.items():
-                            try:
-                                if hexagon_cell_counts_hex not in hexagon_cell_counts:
-                                    hexagon_cell_counts[hexagon_cell_counts_hex] = {}
-                                if (
-                                    cell_id
-                                    not in hexagon_cell_counts[hexagon_cell_counts_hex]
-                                ):
-                                    hexagon_cell_counts[hexagon_cell_counts_hex][
-                                        cell_id
-                                    ] = 0
-                                hexagon_cell_counts[hexagon_cell_counts_hex][
-                                    cell_id
-                                ] += cell_count
-                            except KeyError:
-                                print(f"Error in trying to add to hexagon_cell_counts")
+
+                    hexagon_cell_counts = pd.concat(
+                    [hexagon_cell_counts, batch_hexagon_cell_counts], axis=0)
+
+                    hexagon_cell_counts = (
+                    hexagon_cell_counts[["hexagons", cell_id_colname, "counts"]]
+                    .groupby(["hexagons", cell_id_colname])
+                    .aggregate({"counts": "sum"})
+                    .reset_index())
 
                 if quality_per_hexagon == True:
                     if cell_id_colname != "None":
@@ -675,6 +657,10 @@ def process_csv_file(
 
     unique_hexagons = hexagon_counts["hexagons"].unique()
     hexagon_counts["hexagon_id"] = hexagon_counts["hexagons"].map(
+        {hexagon: i for i, hexagon in enumerate(unique_hexagons)}
+    )
+
+    hexagon_cell_counts["hexagon_id"] = hexagon_cell_counts["hexagons"].map(
         {hexagon: i for i, hexagon in enumerate(unique_hexagons)}
     )
 
@@ -827,23 +813,20 @@ def create_pseudovisium(
 
     ############################################## ##############################################
 
-    if hexagon_cell_counts == {}:
+    #if hexagon_cell_counts is pandas df
+    if hexagon_cell_counts.empty:
         print("No cell information provided. Skipping cell information files.")
     else:
         print("Creating pv_cell_hex.csv file in spatial folder.")
-        with open(folderpath + "/spatial/pv_cell_hex.csv", "w", newline="") as f:
-            writer = csv.writer(f)
-            for hexagon, cell_count_dict in hexagon_cell_counts.items():
-                try:
-                    hexagon_index = np.where(unique_hexagons == str(hexagon))[0][0]
-                    for cell, count in cell_count_dict.items():
-                        writer.writerow([cell, hexagon_index + 1, count])
-                except IndexError as e:
-                    print(
-                        f"Error: Unable to find hexagon '{hexagon}' in unique_hexagons."
-                    )
-                    print(f"Error details: {str(e)}")
-                    print(f"Skipping cell measurement for hexagon '{hexagon}'.")
+        #rearrange cols as cell_id, hexagon_id, counts
+        hexagon_cell_counts = hexagon_cell_counts[["cell_id", "hexagon_id", "counts"]]
+        #add 1 to hexagon_ids
+        hexagon_cell_counts["hexagon_id"] = hexagon_cell_counts["hexagon_id"] + 1
+        #save csv
+        hexagon_cell_counts.to_csv(
+            folderpath + "/spatial/pv_cell_hex.csv", index=False, header=False
+        )
+
 
     if hexagon_quality == {}:
         print("No quality information provided. Skipping quality information files.")
