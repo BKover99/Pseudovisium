@@ -456,70 +456,6 @@ def process_csv_file(
         )
 
 
-    if technology == "Xenium":
-        print("Technology is Xenium. Going forward with default column names.")
-        x_colname = "x_location"
-        y_colname = "y_location"
-        feature_colname = "feature_name"
-        cell_id_colname = "cell_id"
-        quality_colname = "qv"
-        count_colname = "NA"
-        coord_to_um_conversion = 1
-
-    elif technology == "Vizgen":
-        print("Technology is Vizgen. Going forward with default column names.")
-        x_colname = "global_x"
-        y_colname = "global_y"
-        feature_colname = "gene"
-        # cell_id_colname = "barcode_id"
-        count_colname = "NA"
-        coord_to_um_conversion = 1
-
-    elif (technology == "Nanostring") or (technology == "CosMx"):
-        print("Technology is Nanostring. Going forward with default column names.")
-        x_colname = "x_global_px"
-        y_colname = "y_global_px"
-        feature_colname = "target"
-        cell_id_colname = "cell_ID"
-        count_colname = "NA"
-        coord_to_um_conversion = 0.12028
-        # see ref https://smi-public.objects.liquidweb.services/cosmx-wtx/Pancreas-CosMx-ReadMe.html
-        # https://nanostring.com/wp-content/uploads/2023/09/SMI-ReadMe-BETA_humanBrainRelease.html
-        # Whereas old smi output seems to be 0.18
-        # https://nanostring-public-share.s3.us-west-2.amazonaws.com/SMI-Compressed/SMI-ReadMe.html
-
-    elif (technology == "Visium_HD") or (technology == "VisiumHD") or (technology == "Visium HD"):
-        print(
-            "Technology is Visium_HD. Going forward with pseudovisium processed colnames."
-        )
-        x_colname = "x"
-        y_colname = "y"
-        feature_colname = "gene"
-        cell_id_colname = "barcode"
-        count_colname = "count"
-        coord_to_um_conversion = 1
-
-    elif technology == "seqFISH":
-        print("Technology is seqFISH. Going forward with default column names.")
-        x_colname = "x"
-        y_colname = "y"
-        feature_colname = "name"
-        cell_id_colname = "cell"
-        count_colname = "NA"
-        coord_to_um_conversion = 1
-
-    elif technology == "Curio":
-        print("Technology is Curio. Going forward with default column names.")
-        x_colname = "x"
-        y_colname = "y"
-        feature_colname = "gene"
-        cell_id_colname = "barcode"
-        count_colname = "count"
-        coord_to_um_conversion = 1
-
-    else:
-        print("Technology not recognized. Going forward with set column names.")
-
     fieldnames = [feature_colname, x_colname, y_colname]
     if cell_id_colname != "None":
         fieldnames.append(cell_id_colname)
@@ -692,6 +628,7 @@ def create_pseudovisium(
     hexagon_cell_counts,
     hexagon_quality,
     probe_quality,
+    cell_id_colname,
     img_file_path=None,
     project_name="project",
     alignment_matrix_file=None,
@@ -819,7 +756,9 @@ def create_pseudovisium(
     else:
         print("Creating pv_cell_hex.csv file in spatial folder.")
         #rearrange cols as cell_id, hexagon_id, counts
-        hexagon_cell_counts = hexagon_cell_counts[["cell_id", "hexagon_id", "counts"]]
+        print(hexagon_cell_counts.head(5))
+        print(cell_id_colname)
+        hexagon_cell_counts = hexagon_cell_counts[[cell_id_colname, "hexagon_id", "counts"]]
         #add 1 to hexagon_ids
         hexagon_cell_counts["hexagon_id"] = hexagon_cell_counts["hexagon_id"] + 1
         #save csv
@@ -1241,6 +1180,7 @@ def generate_pv(
         coord_to_um_conversion (float, optional): The conversion factor from coordinates to micrometers. Defaults to 1.
         spot_diameter (float, optional): The diameter of the spot. Defaults to None.
     """
+    print(cell_id_colname)
     try:
 
         start = time.time()
@@ -1269,7 +1209,69 @@ def generate_pv(
             print("Smoothing defaults to : {0}".format(smoothing_scale / 4))
             smoothing = smoothing_scale / 4
 
-            # Process CSV file to generate hexagon counts and hexagon information
+        if technology == "Xenium":
+            print("Technology is Xenium. Going forward with default column names.")
+            x_colname = "x_location"
+            y_colname = "y_location"
+            feature_colname = "feature_name"
+            cell_id_colname = "cell_id"
+            quality_colname = "qv"
+            count_colname = "NA"
+            coord_to_um_conversion = 1
+
+        elif technology == "Vizgen":
+            print("Technology is Vizgen. Going forward with default column names.")
+            x_colname = "global_x"
+            y_colname = "global_y"
+            feature_colname = "gene"
+            # cell_id_colname = "barcode_id"
+            count_colname = "NA"
+            coord_to_um_conversion = 1
+
+        elif (technology == "Nanostring") or (technology == "CosMx"):
+            print("Technology is Nanostring. Going forward with default column names.")
+            x_colname = "x_global_px"
+            y_colname = "y_global_px"
+            feature_colname = "target"
+            cell_id_colname = "cell_ID"
+            count_colname = "NA"
+            coord_to_um_conversion = 0.12028
+            # see ref https://smi-public.objects.liquidweb.services/cosmx-wtx/Pancreas-CosMx-ReadMe.html
+            # https://nanostring.com/wp-content/uploads/2023/09/SMI-ReadMe-BETA_humanBrainRelease.html
+            # Whereas old smi output seems to be 0.18
+            # https://nanostring-public-share.s3.us-west-2.amazonaws.com/SMI-Compressed/SMI-ReadMe.html
+
+        elif (technology == "Visium_HD") or (technology == "VisiumHD") or (technology == "Visium HD"):
+            print(
+                "Technology is Visium_HD. Going forward with pseudovisium processed colnames."
+            )
+            x_colname = "x"
+            y_colname = "y"
+            feature_colname = "gene"
+            cell_id_colname = "barcode"
+            count_colname = "count"
+            coord_to_um_conversion = 1
+
+        elif technology == "seqFISH":
+            print("Technology is seqFISH. Going forward with default column names.")
+            x_colname = "x"
+            y_colname = "y"
+            feature_colname = "name"
+            cell_id_colname = "cell"
+            count_colname = "NA"
+            coord_to_um_conversion = 1
+
+        elif technology == "Curio":
+            print("Technology is Curio. Going forward with default column names.")
+            x_colname = "x"
+            y_colname = "y"
+            feature_colname = "gene"
+            cell_id_colname = "barcode"
+            count_colname = "count"
+            coord_to_um_conversion = 1
+
+        else:
+            print("Technology not recognized. Going forward with set column names.")
 
         (
             hexagon_counts,
@@ -1309,6 +1311,7 @@ def generate_pv(
             hexagon_cell_counts=hexagon_cell_counts,
             hexagon_quality=hexagon_quality,
             probe_quality=probe_quality,
+            cell_id_colname=cell_id_colname,
             img_file_path=img_file_path,
             project_name=project_name,
             alignment_matrix_file=alignment_matrix_file,
