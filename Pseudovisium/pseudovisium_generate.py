@@ -288,7 +288,7 @@ def process_batch(
     )
     df_batch["hexagons"] = hexagons
     # filter out rows where hexagon is -1
-    df_batch = df_batch[df_batch["hexagons"] != -1]
+    df_batch = df_batch[df_batch["hexagons"] != "-1"]
     df_batch[feature_colname] = df_batch[feature_colname].map(
         {feature: i for i, feature in enumerate(unique_features)}
     )
