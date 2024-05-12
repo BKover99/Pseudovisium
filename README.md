@@ -25,7 +25,6 @@ The generate_pv command takes your spatial transcriptomics data in CSV format an
 | `y_colname` | `-yc` | The name of the y-coordinate column in the CSV file (default: 'y_location'). |
 | `cell_id_colname` | `-cc` | The name of the cell ID column in the CSV file (default: 'None'). |
 | `quality_colname` | `-qcol` | The name of the quality score column in the CSV file (default: 'qv'). |
-| `pixel_to_micron` | `-ptm` | Whether to convert pixel coordinates to micron coordinates (default: False). |
 | `max_workers` | `--mw` | The maximum number of worker processes to use for parallel processing (default: min(2, multiprocessing.cpu_count())). |
 | `quality_filter` | `-qf` | Whether to filter rows based on quality score (default: False). |
 | `count_colname` | `-ccol` | The name of the count column in the CSV file (default: 'NA'). |
@@ -35,8 +34,6 @@ The generate_pv command takes your spatial transcriptomics data in CSV format an
 | `quality_per_probe` | `-qpp` | Whether to calculate quality per probe (default: False). |
 | `h5_x_colname` | `-h5x` | The name of the x-coordinate column in the h5 file (default: 'x'). |
 | `h5_y_colname` | `-h5y` | The name of the y-coordinate column in the h5 file (default: 'y'). |
-| `move_x` | `-mx` | The amount to move the x-coordinate (default: 0). |
-| `move_y` | `-my` | The amount to move the y-coordinate (default: 0). |
 | `coord_to_um_conversion` | `-ctu` | The conversion factor from coordinates to micrometers (default: 1). |
 | `spot_diameter` | `-sd` | The diameter of the spot for Visium-like array structure (optional). |
 
@@ -110,5 +107,5 @@ https://github.com/BKover99/Pseudovisium/blob/main/Pulmonary_lung_QC.ipynb
 
 ### Author
 Bence Kover
-https://twitter.com/kover_bence
+https://twitter.com/kover_bence 
 https://www.linkedin.com/in/ben-kover/
