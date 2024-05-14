@@ -1372,10 +1372,16 @@ def hexagon_plot_to_html(hexagon_df, hexagon_size, image_pixels_per_um, gene_nam
         #Double check this and why there is the 0.865 division
         hexagon = RegularPolygon((hx, hy), numVertices=6, radius=hexagon_size * image_pixels_per_um / 0.865, alpha=0.2, edgecolor='k', orientation=np.pi / 2)
         ax.add_patch(hexagon)
-    ax.set_xlim(0, max(hexagon_df["x"]))
-    ax.set_ylim(0, max(hexagon_df["y"]))
-    aspect = hexagon_df["x"].max() / hexagon_df["y"].max()
+
+    x_min, x_max = hexagon_df["x"].min(), hexagon_df["x"].max()
+    y_min, y_max = hexagon_df["y"].min(), hexagon_df["y"].max()
+
+    ax.set_xlim(x_min, x_max)
+    ax.set_ylim(y_min, y_max)
+
+    aspect = (x_max - x_min) / (y_max - y_min)
     ax.set_aspect(aspect)
+    
     ax.set_xticks([])
     ax.set_yticks([])
     ax.set_title(f"{gene_name} - {dataset_name}", loc='center', fontsize=8)

@@ -1241,7 +1241,7 @@ def generate_pv(
             x_colname = "x_global_px"
             y_colname = "y_global_px"
             feature_colname = "target"
-            cell_id_colname = "cell_ID"
+            cell_id_colname = "cell"
             count_colname = "NA"
             coord_to_um_conversion = 0.12028
             # see ref https://smi-public.objects.liquidweb.services/cosmx-wtx/Pancreas-CosMx-ReadMe.html
