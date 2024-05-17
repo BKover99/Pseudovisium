@@ -21,6 +21,8 @@ from adjustText import adjust_text
 from io import BytesIO
 import base64
 import warnings
+#import multipletests
+from statsmodels.stats.multitest import multipletests
 
 #throughout remove Warnings
 warnings.filterwarnings("ignore",category=FutureWarning)
@@ -143,14 +145,14 @@ def generate_qc_report(folders, output_folder=os.getcwd(), gene_names=["RYR3", "
         total_counts = np.sum(matrix["Counts"])
         prop_neg_control = neg_control_counts / total_counts
         if cell_info:
-            pv_cell_hex_assigned = pv_cell_hex[(pv_cell_hex["Cell_ID"] != "UNASSIGNED") & (pv_cell_hex["Cell_ID"] != -1)]
+            pv_cell_hex_assigned = pv_cell_hex[(pv_cell_hex["Cell_ID"] != "UNASSIGNED") & (pv_cell_hex["Cell_ID"] != -1) & (pv_cell_hex["Cell_ID"] != 0)]
             grouped_pv_cell_hex_assigned = pv_cell_hex_assigned.groupby("Hexagon_ID")["Cell_ID"].count()
             median_cells_per_hex = np.median(grouped_pv_cell_hex_assigned)
 
             counts_per_cell = pv_cell_hex_assigned.groupby("Cell_ID")["Count"].sum()
             median_counts_per_cell = np.median(counts_per_cell)
 
-            pv_cell_hex_unassigned = pv_cell_hex[(pv_cell_hex["Cell_ID"] != "UNASSIGNED") | (pv_cell_hex["Cell_ID"] != -1)]
+            pv_cell_hex_unassigned = pv_cell_hex[(pv_cell_hex["Cell_ID"] == "UNASSIGNED") | (pv_cell_hex["Cell_ID"] == -1) | (pv_cell_hex["Cell_ID"] == 0)]
             #merge with grouped_pv_cell_hex_assigned
             grouped_pv_cell_hex_assigned_sum = pv_cell_hex_assigned.groupby("Hexagon_ID")["Count"].sum()
             merged_assigned_unassigned = pd.merge(grouped_pv_cell_hex_assigned_sum,pv_cell_hex_unassigned,left_on="Hexagon_ID",right_on="Hexagon_ID",how="inner")
@@ -1085,18 +1087,25 @@ def not_working_probe_based_on_sum(matrix_joined,sample_id="Sample1"):
     plot_df["Probe category"] = [1 if gene in grouped_matrix_neg_probes.index.values else 0 for gene in plot_df.index.values]
     plot_df["gene"] = plot_df.index.values
     plot_df["log_counts"] = np.log10(plot_df["Counts"])
+    plot_df["p"] = 0
+    plot_df["fdr"] = 1
+
+    neg_probes_count = plot_df[plot_df["Probe category"]==1]["log_counts"]
+    mean = np.mean(neg_probes_count)
+    std = np.std(neg_probes_count)
 
     #iterate through the true probes and see whether they are significantly outside of the distribution of the neg probes
     for gene in grouped_matrix_true_probes.index.values:
         gene_count = plot_df.loc[gene,"log_counts"]
-        neg_probes_count = plot_df[plot_df["Probe category"]==1]["log_counts"]
-        #get pval with ttest
-        mean = np.mean(neg_probes_count)
-        std = np.std(neg_probes_count)
         p_val = stats.norm.cdf(gene_count, loc=mean, scale=std)
         p_val = 1-p_val
-        if p_val*len(grouped_matrix_true_probes)<0.05:
-            plot_df.loc[gene,"Probe category"] = 2
+        plot_df.loc[plot_df["gene"]==gene, "p"] = p_val
+    #perform fdr correction
+    plot_df["fdr"] = multipletests(plot_df["p"], method="fdr_bh")[1]
+    #where fdr is less than 0.05, set the probe category to bad
+    for gene in plot_df[plot_df["fdr"]<0.05].index.values:
+        if gene not in grouped_matrix_neg_probes.index.values:
+            plot_df.loc[plot_df["gene"]==gene, "Probe category"] = 2
         
     plot_df["Probe category"] = ["Neg_control" if x==1 else "Bad" if x==0 else "Good" for x in plot_df["Probe category"]]
     plot_df["Sample"] = sample_id
@@ -1207,17 +1216,27 @@ def not_working_probe_based_on_quality(probe_quality, sample_id="Sample1"):
     plot_df = probe_quality.reset_index(drop=True)
     plot_df["Probe category"] = [1 if gene in probe_quality_neg_probes.Probe_ID.values else 0 for gene in plot_df.Probe_ID.values]
 
+
+    neg_probes_quality = plot_df[plot_df["Probe category"]==1]["Quality"]
+    mean = np.mean(neg_probes_quality)
+    std = np.std(neg_probes_quality)
+    plot_df["fdr"] = 1
+
+
     #iterate through the true probes and see whether they are significantly outside of the distribution of the neg probes
     for gene in probe_quality_true_probes.Probe_ID.values:
         plot_df_gene_index = plot_df[plot_df["Probe_ID"]==gene].index[0]
         quality = plot_df[plot_df["Probe_ID"]==gene]["Quality"]
-        neg_probes_quality = plot_df[plot_df["Probe category"]==1]["Quality"]
-        mean = np.mean(neg_probes_quality)
-        std = np.std(neg_probes_quality)
+        
         p_val = stats.norm.cdf(quality, loc=mean, scale=std)
         p_val = 1-p_val
-        if p_val*len(probe_quality_true_probes)<0.05:
-            plot_df.loc[plot_df_gene_index,"Probe category"] = 2
+        plot_df.loc[gene,"p"] = p_val
+
+    plot_df["fdr"] = multipletests(plot_df["p"], method="fdr_bh")[1]
+    #where fdr is less than 0.05, set the probe category to bad
+    for gene in plot_df[plot_df["fdr"]>0.05].index.values:
+        if gene not in probe_quality_neg_probes.Probe_ID.values:
+            plot_df.loc[plot_df["gene"]==gene, "Probe category"] = 0
         
     plot_df["Probe category"] = ["Neg_control" if x==1 else "Bad" if x==0 else "Good" for x in plot_df["Probe category"]]
     plot_df["Sample"] = sample_id
@@ -1248,15 +1267,22 @@ def not_working_probe_based_on_morans_i(morans_table, sample_id="Sample1"):
     neg_probes_morans_i_s = plot_df[plot_df["Probe category"]==1]["Morans_I"]
     mean = np.mean(neg_probes_morans_i_s)
     std = np.std(neg_probes_morans_i_s)
+    plot_df["fdr"] = 1
 
+  
     #iterate through the true probes and see whether they are significantly outside of the distribution of the neg probes
     for gene in morans_table_true_probes.gene.values:
         plot_df_gene_index = plot_df[plot_df["gene"]==gene].index[0]
         morans_i_s = plot_df[plot_df["gene"]==gene]["Morans_I"]
         p_val = stats.norm.cdf(morans_i_s, loc=mean, scale=std)
         p_val = 1-p_val
-        if p_val*len(morans_table_true_probes)<0.05:
-            plot_df.loc[plot_df_gene_index,"Probe category"] = 2
+        plot_df.loc[plot_df["gene"]==gene, "p"] = p_val
+    plot_df["fdr"] = multipletests(plot_df["p"], method="fdr_bh")[1]
+    #where fdr is less than 0.05, set the probe category to bad
+    for gene in plot_df[plot_df["fdr"]<0.05].index.values:
+        if gene not in morans_table_neg_probes.gene.values:
+            plot_df.loc[plot_df["gene"]==gene, "Probe category"] = 2
+
     
     #save the name of those genes with 0
     plot_df["Probe category"] = ["Neg_control" if x==1 else "Good" if x==2 else "Bad" for x in plot_df["Probe category"]]

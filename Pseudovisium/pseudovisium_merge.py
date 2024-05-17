@@ -3,20 +3,26 @@ import json
 import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
-import geopandas as gpd
-from shapely.geometry import Point
-import matplotlib.pyplot as plt
-import scipy.stats as stats
-from tqdm import tqdm
 import os
 import shutil
 import gzip
 import cv2
 import scanpy as sc
 import scipy.io
+import h5py
+from pathlib import Path
 
 def from_h5_to_files(fold):
-    ad = sc.read_10x_h5(fold + "/filtered_feature_bc_matrix.h5")
+    """
+    Convert filtered_feature_bc_matrix.h5 file to features.tsv, barcodes.tsv, and matrix.mtx files.
+
+    Args:
+        fold (str): Path to the folder containing the filtered_feature_bc_matrix.h5 file.
+    """
+    #look for h5 ending file
+    h5file = [f for f in os.listdir(fold) if f.endswith(".h5")][0]
+    ad = sc.read_10x_h5(fold + h5file)
+    ad = ad.var_names_make_unique()
     features = pd.DataFrame(ad.var.index)
     features[1] = features[0]
     features[2] = "Gene Expression"
@@ -25,6 +31,15 @@ def from_h5_to_files(fold):
     scipy.io.mmwrite(os.path.join(fold, "matrix.mtx"), ad.X.T)
 
 def load_data(folder):
+    """
+    Load data from a folder containing Visium/Pseudovisium output files.
+
+    Args:
+        folder (str): Path to the folder containing Visium/Pseudovisium output files.
+
+    Returns:
+        tuple: A tuple containing dataset name and a dictionary with loaded data.
+    """
     dataset_name = folder.split("/")[-2] 
     print(f"Loading in {dataset_name}")
     
@@ -85,6 +100,19 @@ def load_data(folder):
 
 
 def merge_data(folders, pv_format=False):
+    """
+    Merge data from multiple Visium output folders.
+
+    Args:
+        folders (list): List of folder paths containing Visium output files.
+        pv_format (bool, optional): Indicate if input is in Pseudovisium format. Defaults to False.
+
+    Returns:
+        tuple: A tuple containing dataset names, nested dictionary, features DataFrame, barcodes DataFrame,
+               maximum x-range, maximum y-range, maximum column range, maximum row range, minimum scale factor,
+               scale factors for saving, and resize factors.
+    """
+
     dataset_names = []
     nested_dict = {}
     features_df = pd.DataFrame()
@@ -147,12 +175,32 @@ def merge_data(folders, pv_format=False):
     return dataset_names, nested_dict, features_df, barcodes_df, max_x_range, max_y_range, max_col_range, max_row_range, scalefactor_hires, scalefactors_for_save, resize_factors
 
 def consensus_features(features_df):
+    """
+    Create a consensus index for features across all datasets.
+
+    Args:
+        features_df (pd.DataFrame): DataFrame containing features from all datasets.
+
+    Returns:
+        pd.DataFrame: Updated features DataFrame with consensus index.
+    """
     features_df_all = features_df.copy()
     unique_gene_ids = features_df_all["Gene_ID"].unique()
     features_df_all["consensus_index"] = features_df_all["Gene_ID"].apply(lambda x: np.where(unique_gene_ids==x)[0][0]+1)
     return features_df_all
 
 def adjust_matrix_barcodes(nested_dict, features_df_all, pv_format=False):
+    """
+    Adjust matrix and barcode IDs in the nested dictionary.
+
+    Args:
+        nested_dict (dict): Nested dictionary containing data for each dataset.
+        features_df_all (pd.DataFrame): DataFrame containing features with consensus index.
+        pv_format (bool, optional): Indicate if input is in Pseudovisium format. Defaults to False.
+
+    Returns:
+        tuple: A tuple containing the updated nested dictionary and the total number of barcodes.
+    """
     n_barcodes_before = 0
     for dataset_name in nested_dict.keys():
         print(dataset_name)
@@ -170,9 +218,26 @@ def adjust_matrix_barcodes(nested_dict, features_df_all, pv_format=False):
             nested_dict[dataset_name]["pv_cell_hex"] = pv_cell_hex
             
         n_barcodes_before += len(nested_dict[dataset_name]["barcodes"])
+        print("n_barcodes_before",n_barcodes_before)
     return nested_dict, n_barcodes_before
 
 def stitch_images(nested_dict, grid, max_x_range, max_y_range, max_col_range, max_row_range, scalefactor_hires):
+    """
+    Stitch images from multiple datasets into a single large image.
+
+    Args:
+        nested_dict (dict): Nested dictionary containing data for each dataset.
+        grid (list): Grid dimensions for stitching images.
+        max_x_range (float): Maximum x-range of the stitched image.
+        max_y_range (float): Maximum y-range of the stitched image.
+        max_col_range (float): Maximum column range of the stitched image.
+        max_row_range (float): Maximum row range of the stitched image.
+        scalefactor_hires (float): High-resolution scale factor.
+
+    Returns:
+        tuple: A tuple containing the new tissue positions list and the stitched image.
+    """
+
     new_tissue_positions_list = pd.DataFrame(columns=["barcode","in_tissue","tissue_col","tissue_row","x","y"])
     stitched_image = np.zeros((int(max_x_range*scalefactor_hires*grid[0]),int(max_y_range*scalefactor_hires*grid[1]),3))
     number_of_datasets = len(nested_dict.keys())
@@ -203,16 +268,82 @@ def stitch_images(nested_dict, grid, max_x_range, max_y_range, max_col_range, ma
     new_tissue_positions_list.drop(["dataset","barcode_id"],axis=1,inplace=True)
     return new_tissue_positions_list, stitched_image
 
+
+
+
+def write_10X_h5(adata, file):
+    """
+    Writes an AnnData object to a 10X-formatted h5 file.
+
+    Args:
+        adata (AnnData): The AnnData object to be written.
+        file (str): The file name to be written to. If no extension is provided, '.h5' is appended.
+
+    Returns:
+        None
+    """
+
+    if ".h5" not in file:
+        file = f"{file}.h5"
+    if Path(file).exists():
+        print(f"File `{file}` already exists. Removing it.")
+        os.remove(file)
+
+    adata.var["feature_types"] = ["Gene Expression" for _ in range(adata.var.shape[0])]
+    adata.var["genome"] = ["pv_placeholder" for _ in range(adata.var.shape[0])]
+    adata.var["gene_ids"] = adata.var.index
+
+    w = h5py.File(file, "w")
+    grp = w.create_group("matrix")
+    grp.create_dataset("barcodes", data=adata.obs_names.values.astype("|S"))
+
+    X = adata.X.T.tocsc()  # Convert the matrix to CSC format
+    grp.create_dataset("data", data=X.data.astype(np.float32))
+    grp.create_dataset("indices", data=X.indices.astype(np.int32))
+    grp.create_dataset("indptr", data=X.indptr.astype(np.int32))
+    grp.create_dataset("shape", data=np.array(X.shape).astype(np.int32))
+
+    ftrs = grp.create_group("features")
+    if "feature_types" in adata.var:
+        ftrs.create_dataset(
+            "feature_type", data=adata.var.feature_types.values.astype("|S")
+        )
+    if "genome" in adata.var:
+        ftrs.create_dataset("genome", data=adata.var.genome.values.astype("|S"))
+    if "gene_ids" in adata.var:
+        ftrs.create_dataset("id", data=adata.var.gene_ids.values.astype("|S"))
+    ftrs.create_dataset("name", data=adata.var.index.values.astype("|S"))
+
+    w.close()
+
+
 def save_output(folderpath, scalefactors_for_save, barcodes_df_all, new_tissue_positions_list, pv_format, nested_dict, dataset_names, features_df_all, stitched_image):
+    """
+    Save the merged output files.
+
+    Args:
+        folderpath (str): Path to the output folder.
+        scalefactors_for_save (dict): Scale factors for saving.
+        barcodes_df_all (pd.DataFrame): DataFrame containing all barcodes.
+        new_tissue_positions_list (pd.DataFrame): DataFrame containing new tissue positions.
+        pv_format (bool): Indicate if input is in Pseudovisium format.
+        nested_dict (dict): Nested dictionary containing data for each dataset.
+        dataset_names (list): List of dataset names.
+        features_df_all (pd.DataFrame): DataFrame containing all features.
+        stitched_image (np.ndarray): Stitched image array.
+    """
+    
     if not os.path.exists(folderpath):
         os.makedirs(folderpath + '/spatial/')
     
     with open(folderpath +'/spatial/scalefactors_json.json', 'w') as f:
         json.dump(scalefactors_for_save, f)
+
+    
         
     barcodes_df_all.drop("index_col",axis=1,inplace=True)
     barcodes_df_all.to_csv(folderpath+'/barcodes.tsv',sep='\t',index=False,header=False)
-    
+    print("Generating barcodes.tsv.gz")
     with open(folderpath +'/barcodes.tsv', 'rb') as f_in:
         with gzip.open(folderpath +'/barcodes.tsv.gz', 'wb') as f_out:
             f_out.writelines(f_in)
@@ -221,30 +352,67 @@ def save_output(folderpath, scalefactors_for_save, barcodes_df_all, new_tissue_p
     
     if pv_format:
         pv_cell_hex = pd.concat([nested_dict[dataset_name]["pv_cell_hex"] for dataset_name in dataset_names])
+        print("Generating pv_cell_hex.csv")
         pv_cell_hex.to_csv(folderpath +'/spatial/pv_cell_hex.csv',index=False,header=False)
         
     features_df_all = features_df_all.sort_values("consensus_index").drop_duplicates(subset=["Gene_ID"])
     features_df_all["Gene_Name"]=features_df_all["Gene_ID"]
     features_df_all["Type"]="Gene expression"
     features_df_all = features_df_all[["Gene_ID","Gene_Name","Type"]]
+    print
     features_df_all.to_csv(folderpath +'/features.tsv',sep='\t',index=False,header=False)
     
     with open(folderpath + '/features.tsv', 'rb') as f_in, gzip.open(folderpath + '/features.tsv.gz', 'wb') as f_out:
         shutil.copyfileobj(f_in, f_out)
         
     matrix_all = pd.concat([nested_dict[dataset_name]["matrix"] for dataset_name in dataset_names])
+    #sort Counts
+    matrix_all = matrix_all.sort_values("Counts",ascending=False)
+    matrix_all = matrix_all.drop_duplicates(subset=["Barcode_ID","Gene_ID"])
+
+    print("Generating matrix.mtx.gz")
     metadata = f'%%MatrixMarket matrix coordinate integer general\n%metadata_json: {{"software_version": "Pseudovisium", "format_version": 1}}\n{len(features_df_all)} {barcodes_df_all.shape[0]} {len(matrix_all)}'
     matrix_all.to_csv(folderpath +'/matrix.mtx',index=False,header=False,sep=" ")
     with open(folderpath + '/matrix.mtx', 'r') as original: data = original.read()
     with open(folderpath + '/matrix.mtx', 'w') as modified: modified.write(metadata + '\n' + data)
     with open(folderpath + '/matrix.mtx', 'rb') as f_in, gzip.open(folderpath + '/matrix.mtx.gz', 'wb') as f_out:
         shutil.copyfileobj(f_in, f_out)
-        
+
+    #create h5 file
+    print("Generating filtered_feature_bc_matrix.h5")
+    print("Generating filtered_feature_bc_matrix.h5")
+    #from matrix_all subtract 1 from barcode_id and gene_id then map to the string barcode_id and gene_id
+    matrix_all["Barcode_ID"] = matrix_all["Barcode_ID"] - 1
+    matrix_all["Gene_ID"] = matrix_all["Gene_ID"] - 1
+    #with lambda function map the barcode_id and gene_id to the string barcode_id and gene_id
+    matrix_all["Barcode_ID"] = matrix_all["Barcode_ID"].apply(lambda x: barcodes_df_all["Barcode_ID"].iloc[x])
+    matrix_all["Gene_ID"] = matrix_all["Gene_ID"].apply(lambda x: features_df_all["Gene_ID"].iloc[x])
+
+    matrix_all_pivoted = matrix_all.pivot(index='Gene_ID', columns='Barcode_ID', values='Counts').fillna(0)
+    print(matrix_all_pivoted.head(5))
+    matrix_sparse = scipy.sparse.csr_matrix(matrix_all_pivoted.values).T
+    adata = sc.AnnData(X=matrix_sparse, obs=pd.DataFrame(index=matrix_all_pivoted.columns), var=pd.DataFrame(index=matrix_all_pivoted.index))
+
+    write_10X_h5(adata, folderpath + '/filtered_feature_bc_matrix.h5')
+
+    
+    print("Generating tissue_hires_image.png")
     plt.imsave(folderpath +'/spatial/tissue_hires_image.png', stitched_image)
     lowres_image = cv2.resize(stitched_image,(int(stitched_image.shape[1]/10),int(stitched_image.shape[0]/10)))
+    print("Generating tissue_lowres_image.png")
     plt.imsave(folderpath +'/spatial/tissue_lowres_image.png', lowres_image)
 
 def merge_visium(folders, output_path, project_name, pv_format=False):
+    """
+    Merge Visium output from multiple folders.
+
+    Args:
+        folders (list): List of folder paths containing Visium output files.
+        output_path (str): Path to the output folder.
+        project_name (str): Project name for output.
+        pv_format (bool, optional): Indicate if input is in Pseudovisium format. Defaults to False.
+    """
+    
     dataset_names, nested_dict, features_df, barcodes_df, max_x_range, max_y_range, max_col_range, max_row_range, scalefactor_hires, scalefactors_for_save, resize_factors = merge_data(folders, pv_format)
     n_rows = max(3,int(np.sqrt(len(folders))))
     n_cols = int(np.ceil(len(folders)/n_rows))
@@ -262,11 +430,15 @@ def merge_visium(folders, output_path, project_name, pv_format=False):
     save_output(folderpath, scalefactors_for_save, barcodes_df_all, new_tissue_positions_list, pv_format, nested_dict, dataset_names, features_df_all, stitched_image)
 
 def main():
+    """
+    Main function to parse command-line arguments and run the merging process.
+    """
+    
     parser = argparse.ArgumentParser(description="Merge Pseudovisium/Visium format files.")
     parser.add_argument("--folders", "-f", nargs="+", help="List of folders containing Pseudovisium/Visium output", required=True)
     parser.add_argument("--output_path", "-o", default="/Users/k23030440/", help="Output folder path")
     parser.add_argument("--project_name", "-p", default="visium_merged", help="Project name for output")
-    parser.add_argument("--pv_format", action="store_true", help="Indicate if input is in Pseudovisium format")
+    parser.add_argument("--pv_format", "-pvf", action="store_true", help="Indicate if input is in Pseudovisium format")
     args = parser.parse_args()
 
     folders = [folder+"/" if not folder.endswith("/") else folder for folder in args.folders]
