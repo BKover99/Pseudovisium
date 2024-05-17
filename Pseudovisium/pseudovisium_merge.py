@@ -380,7 +380,6 @@ def save_output(folderpath, scalefactors_for_save, barcodes_df_all, new_tissue_p
 
     #create h5 file
     print("Generating filtered_feature_bc_matrix.h5")
-    print("Generating filtered_feature_bc_matrix.h5")
     #from matrix_all subtract 1 from barcode_id and gene_id then map to the string barcode_id and gene_id
     matrix_all["Barcode_ID"] = matrix_all["Barcode_ID"] - 1
     matrix_all["Gene_ID"] = matrix_all["Gene_ID"] - 1
