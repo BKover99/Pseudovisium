@@ -1,5 +1,5 @@
 # 🛑 Pseudovisium
-Pseudovisium is a Python software package designed to democratize the analysis of spatial transcriptomics data. By leveraging hexagonal binning, Pseudovisium enables efficient compression and visualization of spatial data, making exploratory analysis and quality control faster and more memory efficient. The goal of this tool is not to increase accuracy, but to make spatial data analysis more accessible, regardless of computing environment. Additionally, this package facilitates simulating low-res/Visium spatial experiments both for practical (e.g. experimental design) and theoretical (e.g. studying the impact of resolution) purposes.
+Pseudovisium is a Python software package designed to democratize the analysis of spatial transcriptomics data. By leveraging hexagonal binning, Pseudovisium enables efficient compression and visualization of spatial data, making exploratory analysis and quality control at least an order of magnitude faster and more memory efficient. The goal of this tool is not to increase accuracy, but to make spatial data analysis more accessible, regardless of computing environment. Additionally, this package facilitates simulating low-res/Visium spatial experiments both for practical (e.g. experimental design) and theoretical (e.g. studying the impact of resolution) purposes.
 
 ## 🚀 Key Features
 ### 1. generate_pv:   Data Compression 📊
@@ -55,7 +55,7 @@ Pseudovisium's qc command generates a detailed quality control (QC) report for a
 | `save_plots` | `-sp` | Save generated plots as publication ready figures (default: False). |
 
 
-### 3. merge:   Data Merging 🧩
+### 3. merge:   Data Merging 🧩 - Not finalised
 
 With the merge command, you can easily merge multiple Pseudovisium or Visium format files. This feature allows you to combine data from different datasets, merge images together, and generate a merged output directory in the Pseudovisium/Visium format. Pseudovisium makes it effortless to merge data from multiple spatial transcriptomics experiments, enabling comprehensive analysis across datasets.
 
