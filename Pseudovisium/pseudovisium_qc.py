@@ -68,7 +68,7 @@ def generate_qc_report(folders, output_folder=os.getcwd(), gene_names=["RYR3", "
 
         arguments = json.load(open(folder + "arguments.json"))
         #if cell_id_colname is not NA, then we have cell info
-        cell_info= True if arguments["cell_id_colname"]!="NA" or arguments["cell_id_colname"]!="None" else False
+        cell_info= True if arguments["cell_id_colname"]!="NA" and arguments["cell_id_colname"]!="None" else False
         quality_per_hexagon = arguments["quality_per_hexagon"]
         quality_per_probe = arguments["quality_per_probe"]
 
