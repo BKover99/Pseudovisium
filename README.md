@@ -55,7 +55,7 @@ Pseudovisium's qc command generates a detailed quality control (QC) report for a
 | `save_plots` | `-sp` | Save generated plots as publication ready figures (default: False). |
 
 
-### 3. merge:   Data Merging 🧩
+### 3. merge:   Data Merging 🧩 - Not finalised
 
 With the merge command, you can easily merge multiple Pseudovisium or Visium format files. This feature allows you to combine data from different datasets, merge images together, and generate a merged output directory in the Pseudovisium/Visium format. Pseudovisium makes it effortless to merge data from multiple spatial transcriptomics experiments, enabling comprehensive analysis across datasets.
 
