@@ -88,7 +88,7 @@ def generate_qc_report(folders, output_folder=os.getcwd(), gene_names=["RYR3", "
             #name cols as barcode, quality, count
             probe_quality.columns = ["Probe_ID", "Quality", "Count"]
             probe_quality["Dataset"] = dataset_name
-            non_ctrl_probes = probe_quality[~probe_quality["Probe_ID"].str.contains("control|ctrl|pos|NegPrb|neg|Ctrl|blank|Control|Blank|BLANK")]
+            non_ctrl_probes = probe_quality[~probe_quality["Probe_ID"].str.contains("control|ctrl|code|Code|assign|Assign|pos|NegPrb|neg|Ctrl|blank|Control|Blank|BLANK")]
             non_ctrl_probes_q_below_20 = non_ctrl_probes[non_ctrl_probes["Quality"]<20]
             pct_non_ctrl_probes_q_below_20 = len(non_ctrl_probes_q_below_20)/len(non_ctrl_probes)
             
@@ -136,10 +136,10 @@ def generate_qc_report(folders, output_folder=os.getcwd(), gene_names=["RYR3", "
         median_features = np.median(grouped_matrix)
         cv_features = np.std(grouped_matrix) / np.mean(grouped_matrix)
 
-        number_of_probes = len(features)
-        number_of_genes = len(features[~features["Gene_ID"].str.contains("control|ctrl|pos|NegPrb|neg|Ctrl|blank|Control|Blank|BLANK")])
+        number_of_probes = len(features)   
+        number_of_genes = len(features[~features["Gene_ID"].str.contains("control|ctrl|code|Code|assign|Assign|pos|NegPrb|neg|Ctrl|blank|Control|Blank|BLANK")])
         
-        neg_control_probes = features[features["Gene_ID"].str.contains("control|ctrl|pos|NegPrb|neg|Ctrl|blank|Control|Blank|BLANK")].index + 1
+        neg_control_probes = features[features["Gene_ID"].str.contains("control|ctrl|code|Code|assign|Assign|pos|NegPrb|neg|Ctrl|blank|Control|Blank|BLANK")].index + 1
         neg_control_counts = np.sum(matrix[matrix["Gene_ID"].isin(neg_control_probes)]["Counts"])
         total_counts = np.sum(matrix["Counts"])
         prop_neg_control = neg_control_counts / total_counts
@@ -788,27 +788,30 @@ def generate_dashboard_html(replicates_data, gene_names, include_morans_i,qualit
 
 
     sums_comparison_html = ""
-    pairs = [(i, j) for i in range(len(replicates_data)) for j in range(i + 1, len(replicates_data))]
-    for i, (index1, index2) in enumerate(pairs):
-        if i % 3 == 0:
+    if len(replicates_data) > 1:
+        pairs = [(i, j) for i in range(len(replicates_data)) for j in range(i + 1, len(replicates_data))]
+        for i, (index1, index2) in enumerate(pairs):
+            if i % 3 == 0:
+                sums_comparison_html += f"""
+                <div class="row">
+                """
+            sums1 = get_probe_sums(replicates_data[index1]['matrix_joined'])
+            sums2 = get_probe_sums(replicates_data[index2]['matrix_joined'])
+            sums_plot_html = plot_sums_to_html(sums1, sums2, replicates_data[index1]['dataset_name'], replicates_data[index2]['dataset_name'], save_plot=save_plots, output_folder=output_folder)
             sums_comparison_html += f"""
-            <div class="row">
-            """
-        sums1 = get_probe_sums(replicates_data[index1]['matrix_joined'])
-        sums2 = get_probe_sums(replicates_data[index2]['matrix_joined'])
-        sums_plot_html = plot_sums_to_html(sums1, sums2, replicates_data[index1]['dataset_name'], replicates_data[index2]['dataset_name'], save_plot=save_plots, output_folder=output_folder)
-        sums_comparison_html += f"""
-        <div class="col">
-            <h3>{replicates_data[index1]['dataset_name']} vs {replicates_data[index2]['dataset_name']}</h3>
-            {sums_plot_html}
-        </div>
-        """
-        if (i + 1) % 3 == 0 or i == len(pairs) - 1:
-            sums_comparison_html += """
+            <div class="col">
+                <h3>{replicates_data[index1]['dataset_name']} vs {replicates_data[index2]['dataset_name']}</h3>
+                {sums_plot_html}
             </div>
             """
+            if (i + 1) % 3 == 0 or i == len(pairs) - 1:
+                sums_comparison_html += """
+                </div>
+                """
 
-    abundance_correlation_heatmap_html = plot_abundance_correlation_heatmap(replicates_data, save_plot=save_plots, output_folder=output_folder)
+    abundance_correlation_heatmap_html = ""
+    if len(replicates_data) > 1:
+        abundance_correlation_heatmap_html = plot_abundance_correlation_heatmap(replicates_data, save_plot=save_plots, output_folder=output_folder)
 
 
     quality_stripplot_html = ""
@@ -833,27 +836,30 @@ def generate_dashboard_html(replicates_data, gene_names, include_morans_i,qualit
     morans_i_comparison_html = ""
     morans_i_heatmap_html = ""
     morans_i_stripplot_html = ""
+
     if include_morans_i:
-        pairs = [(i, j) for i in range(len(replicates_data)) for j in range(i + 1, len(replicates_data))]
-        for i, (index1, index2) in enumerate(pairs):
-            if i % 3 == 0:
+        if len(replicates_data) > 1:
+            pairs = [(i, j) for i in range(len(replicates_data)) for j in range(i + 1, len(replicates_data))]
+            for i, (index1, index2) in enumerate(pairs):
+                if i % 3 == 0:
+                    morans_i_comparison_html += f"""
+                    <div class="row">
+                    """
+                morans_i1 = replicates_data[index1]['morans_i']
+                morans_i2 = replicates_data[index2]['morans_i']
+                morans_i_plot_html = plot_morans_i_to_html(morans_i1, morans_i2, replicates_data[index1]['dataset_name'], replicates_data[index2]['dataset_name'], save_plot=save_plots, output_folder=output_folder)
                 morans_i_comparison_html += f"""
-                <div class="row">
-                """
-            morans_i1 = replicates_data[index1]['morans_i']
-            morans_i2 = replicates_data[index2]['morans_i']
-            morans_i_plot_html = plot_morans_i_to_html(morans_i1, morans_i2, replicates_data[index1]['dataset_name'], replicates_data[index2]['dataset_name'], save_plot=save_plots, output_folder=output_folder)
-            morans_i_comparison_html += f"""
-            <div class="col">
-                <h3>{replicates_data[index1]['dataset_name']} vs {replicates_data[index2]['dataset_name']}</h3>
-                {morans_i_plot_html}
-            </div>
-            """
-            if (i + 1) % 3 == 0 or i == len(pairs) - 1:
-                morans_i_comparison_html += """
+                <div class="col">
+                    <h3>{replicates_data[index1]['dataset_name']} vs {replicates_data[index2]['dataset_name']}</h3>
+                    {morans_i_plot_html}
                 </div>
                 """
-        morans_i_heatmap_html = plot_morans_i_correlation_heatmap(replicates_data, save_plot=save_plots, output_folder=output_folder)
+                if (i + 1) % 3 == 0 or i == len(pairs) - 1:
+                    morans_i_comparison_html += """
+                    </div>
+                    """
+            morans_i_heatmap_html = plot_morans_i_correlation_heatmap(replicates_data, save_plot=save_plots, output_folder=output_folder)
+
         for i, replicate_data in enumerate(replicates_data):
             if i % 3 == 0:
                 morans_i_stripplot_html += f"""
@@ -939,11 +945,11 @@ def generate_dashboard_html(replicates_data, gene_names, include_morans_i,qualit
                 <label for="metrics-select">Select Metric:</label>
                 <select id="metrics-select">
                     <option value="table">Table of Key Metrics</option>
-                    <option value="abundance-correlation-heatmap">Abundance Correlation Heatmap</option>
-                    <option value="sums-comparison">Abundance Comparison</option>
+                    {'<option value="abundance-correlation-heatmap">Abundance Correlation Heatmap</option>' if len(replicates_data) > 1 else ""}
+                    {'<option value="sums-comparison">Abundance Comparison</option>' if len(replicates_data) > 1 else ""}
                     <option value="sums-i-stripplot">Abundance Stripplot</option>
-                    {'<option value="morans-i-heatmap">Morans I Correlation Heatmap</option>' if include_morans_i else ""}
-                    {'<option value="morans-i-comparison">Morans I Comparison</option>' if include_morans_i else ""}
+                    {'<option value="morans-i-heatmap">Morans I Correlation Heatmap</option>' if include_morans_i and len(replicates_data) > 1 else ""}
+                    {'<option value="morans-i-comparison">Morans I Comparison</option>' if include_morans_i and len(replicates_data) > 1 else ""}
                     {'<option value="morans-i-stripplot">Morans I Stripplot</option>' if include_morans_i else ""}
                     <option value="plot">Hexagon Plots for Genes of Interest</option>
                     <option value="nfeature_hexagon_plots">Number of Features per Hexagon Plots</option>
@@ -1078,8 +1084,8 @@ def not_working_probe_based_on_sum(matrix_joined,sample_id="Sample1"):
     """
     grouped_matrix = matrix_joined.groupby("Gene_ID_y")["Counts"].sum()
     #where index has control|blank|Control|Blank|BLANK in it
-    grouped_matrix_neg_probes = grouped_matrix[grouped_matrix.index.str.contains("control|ctrl|pos|NegPrb|neg|Ctrl|blank|Control|Blank|BLANK")]
-    grouped_matrix_true_probes = grouped_matrix[~grouped_matrix.index.str.contains("control|ctrl|pos|NegPrb|neg|Ctrl|blank|Control|Blank|BLANK")]     
+    grouped_matrix_neg_probes = grouped_matrix[grouped_matrix.index.str.contains("control|ctrl|code|Code|assign|Assign|pos|NegPrb|neg|Ctrl|blank|Control|Blank|BLANK")]
+    grouped_matrix_true_probes = grouped_matrix[~grouped_matrix.index.str.contains("control|ctrl|code|Code|assign|Assign|pos|NegPrb|neg|Ctrl|blank|Control|Blank|BLANK")]     
 
     #create a plot_df that is grouped_matrix and a column specifying whether the gene is a neg control or not
     plot_df = pd.DataFrame(grouped_matrix)
@@ -1210,8 +1216,8 @@ def not_working_probe_based_on_quality(probe_quality, sample_id="Sample1"):
         pandas.DataFrame: DataFrame with probe categories (Good, Bad, Neg_control) based on quality scores.
     """
     
-    probe_quality_neg_probes = probe_quality[probe_quality["Probe_ID"].str.contains("control|ctrl|pos|NegPrb|neg|Ctrl|blank|Control|Blank|BLANK")]
-    probe_quality_true_probes = probe_quality[~probe_quality["Probe_ID"].str.contains("control|ctrl|pos|NegPrb|neg|Ctrl|blank|Control|Blank|BLANK")]
+    probe_quality_neg_probes = probe_quality[probe_quality["Probe_ID"].str.contains("control|ctrl|code|Code|assign|Assign|pos|NegPrb|neg|Ctrl|blank|Control|Blank|BLANK")]
+    probe_quality_true_probes = probe_quality[~probe_quality["Probe_ID"].str.contains("control|ctrl|code|Code|assign|Assign|pos|NegPrb|neg|Ctrl|blank|Control|Blank|BLANK")]
     plot_df = probe_quality.reset_index(drop=True)
     plot_df["Probe category"] = [1 if gene in probe_quality_neg_probes.Probe_ID.values else 0 for gene in plot_df.Probe_ID.values]
 
@@ -1229,7 +1235,7 @@ def not_working_probe_based_on_quality(probe_quality, sample_id="Sample1"):
         
         p_val = stats.norm.cdf(quality, loc=mean, scale=std)
         p_val = 1-p_val
-        plot_df.loc[gene,"p"] = p_val
+        plot_df.loc[plot_df["Probe_ID"]==gene, "p"] = p_val
 
     plot_df["fdr"] = multipletests(plot_df["p"], method="fdr_bh")[1]
     #where fdr is less than 0.05, set the probe category to bad
@@ -1256,8 +1262,8 @@ def not_working_probe_based_on_morans_i(morans_table, sample_id="Sample1"):
     Returns:
         pandas.DataFrame: DataFrame with probe categories (Good, Bad, Neg_control) based on Moran's I values.
     """
-    morans_table_neg_probes = morans_table[morans_table.gene.str.contains("control|ctrl|pos|NegPrb|neg|Ctrl|blank|Control|Blank|BLANK")]
-    morans_table_true_probes = morans_table[~morans_table.gene.str.contains("control|ctrl|pos|NegPrb|neg|Ctrl|blank|Control|Blank|BLANK")]     
+    morans_table_neg_probes = morans_table[morans_table.gene.str.contains("control|ctrl|code|Code|assign|Assign|pos|NegPrb|neg|Ctrl|blank|Control|Blank|BLANK")]
+    morans_table_true_probes = morans_table[~morans_table.gene.str.contains("control|ctrl|code|Code|assign|Assign|pos|NegPrb|neg|Ctrl|blank|Control|Blank|BLANK")]     
 
     #create a plot_df that is grouped_matrix and a column specifying whether the gene is a neg control or not
     plot_df = morans_table.reset_index(drop=True)
@@ -1542,6 +1548,8 @@ def plot_abundance_correlation_heatmap(replicates_data,save_plot=False,output_fo
     Returns:
         str: HTML code for the generated abundance correlation heatmap.
     """
+    if len(replicates_data) == 1:
+        return ""
     # Calculate the sums of features for each replicate
     sums_data = []
     replicate_names = []
@@ -1813,6 +1821,8 @@ def plot_morans_i_correlation_heatmap(replicates_data, save_plot=False,output_fo
     Returns:
         str: HTML code for the generated Moran's I correlation heatmap.
     """
+    if len(replicates_data) == 1:
+        return ""
     #get the morans i for each dataset
     morans_i_data = []
     replicate_names = []
