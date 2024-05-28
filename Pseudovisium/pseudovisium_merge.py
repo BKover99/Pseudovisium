@@ -79,13 +79,27 @@ def load_data(folder):
     matrix = pd.read_csv(matrix_file, header=3, sep=" ")
     matrix.columns = ["Gene_ID", "Barcode_ID", "Counts"]
     
+    
+    
+    scalefactors = json.load(open(folder + "/spatial/scalefactors_json.json"))
+
+    #check if there is an arguments.json file in the folder if yes it is pv if not it is v
+    data_source = "pv" if os.path.exists(folder + "/arguments.json") else "v"
+    if data_source == "v":
+        #get correction factor
+        spot_diam = scalefactors["spot_diameter_fullres"]
+        real_diam = 55
+        micron_per_pixel = real_diam/spot_diam #this will be about 1/2
+        tissue_positions_list["x"] = tissue_positions_list["x"]*micron_per_pixel
+        tissue_positions_list["y"] = tissue_positions_list["y"]*micron_per_pixel
+        scalefactors["tissue_hires_scalef"] = scalefactors["tissue_hires_scalef"] * micron_per_pixel 
+
+
     image_exists = os.path.exists(folder + "/spatial/tissue_hires_image.png")
     if image_exists:
         image = plt.imread(folder + "/spatial/tissue_hires_image.png")
     else:
         image = np.zeros((int(tissue_positions_list["x"].max()), int(tissue_positions_list["y"].max())))
-    
-    scalefactors = json.load(open(folder + "/spatial/scalefactors_json.json"))
     
     data = {
         "matrix": matrix,
@@ -93,7 +107,8 @@ def load_data(folder):
         "features": features,
         "barcodes": barcodes,
         "image": image,
-        "scalefactors": scalefactors
+        "scalefactors": scalefactors,
+        "data_source": data_source
     }
     return dataset_name, data
 
@@ -117,7 +132,10 @@ def merge_data(folders, pv_format=False):
     nested_dict = {}
     features_df = pd.DataFrame()
     barcodes_df = pd.DataFrame()
-    
+
+
+    #Visium datasets are not set to 1um units. 
+
     scalefactor_hires_vals=[]
     for folder in folders:
         scalefactors = json.load(open(folder+"/spatial/scalefactors_json.json"))
