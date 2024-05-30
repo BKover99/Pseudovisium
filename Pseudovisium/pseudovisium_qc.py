@@ -20,7 +20,10 @@ from esda import Moran
 from adjustText import adjust_text
 from io import BytesIO
 import base64
+import subprocess
 import warnings
+import subprocess
+import datetime
 #import multipletests
 from statsmodels.stats.multitest import multipletests
 
@@ -85,7 +88,7 @@ def generate_qc_report(folders, output_folder=os.getcwd(), gene_names=["RYR3", "
             cell_info=False
             quality_per_hexagon=False
             quality_per_probe=False
-        #if cell_id_colname is not NA, then we have cell info
+
         if not visium:
             cell_info= True if arguments["cell_id_colname"]!="NA" and arguments["cell_id_colname"]!="None" else False
             quality_per_hexagon = arguments["quality_per_hexagon"]
@@ -127,8 +130,10 @@ def generate_qc_report(folders, output_folder=os.getcwd(), gene_names=["RYR3", "
             spot_diam = scalefactors["spot_diameter_fullres"]
             real_diam = 55
             micron_per_pixel = real_diam/spot_diam
-            hexagon_size = float(1/micron_per_pixel*50)
-            image_pixels_per_um = float(1/micron_per_pixel)
+            hexagon_size = 50
+            image_pixels_per_um = 1
+            tissue_positions_list["x"]=tissue_positions_list["x"]*micron_per_pixel
+            tissue_positions_list["y"]=tissue_positions_list["y"]*micron_per_pixel
         #check if there are any 1 values for in_tissue. If there are, then only keep those, if there arent, keep everything
 
         tissue_positions_list = tissue_positions_list[tissue_positions_list["in_tissue"] == 1] if 1 in tissue_positions_list["in_tissue"].values else tissue_positions_list
@@ -197,8 +202,6 @@ def generate_qc_report(folders, output_folder=os.getcwd(), gene_names=["RYR3", "
             #merge with matrix
             merged_assigned_unassigned = pd.merge(merged_assigned_unassigned,tissue_positions_list,left_on="Hexagon_ID",right_on="barcode_id",how="inner",suffixes=('_a', '_b'))
             median_unassigned_pct = np.median(merged_assigned_unassigned["pct_unassigned"])
-
-
             # merge tissue_positions_list with pv_cell_hex
             tissue_positions_pv_cell_hex = pd.merge(tissue_positions_list, pv_cell_hex, left_on="barcode_id", right_on="Hexagon_ID", how="inner")
             #sum up the number of Cell_ID in every Hexagon_ID but keep x and y intact
@@ -370,6 +373,13 @@ def generate_dashboard_html(replicates_data, gene_names, include_morans_i,qualit
     print("quality_per_hexagon: ",quality_per_hexagon)
     print("quality_per_probe: ",quality_per_probe)
     print("cell_info: ",cell_info)
+
+    output = subprocess.check_output(['pip', 'freeze']).decode('utf-8').strip().split('\n')
+    version = [x for x in output if 'Pseudovisium' in x]
+    date = str(datetime.datetime.now().date())
+    print("You are using version: ",version)
+    print("Date: ",date)
+
 
 
     metrics_html = """
@@ -972,6 +982,8 @@ def generate_dashboard_html(replicates_data, gene_names, include_morans_i,qualit
     <body>
         <h1 style="text-align:center;">Pseudovisium QC</h1>
         <p style="text-align:center;">Written by Bence Kover (2024)</p>
+        <p style="text-align:center;">Version: {version}</p>
+        <p style="text-align:center;">Date: {date}</p>
         <div class="container">
             <div class="dropdown">
                 <label for="metrics-select">Select Metric:</label>
@@ -1720,6 +1732,7 @@ def get_morans_i(gene_name, matrix_joined, tissue_positions_list, max_workers=4,
     elif gene_name == "all" and squidpy:
         print("folder", folder)
         adata = sq.read.visium(folder,library_id="library")
+        adata.var_names_make_unique()
         print("Filtering genes and cells")
         sc.pp.filter_genes(adata, min_counts=10)
         sc.pp.filter_cells(adata, min_counts=100)

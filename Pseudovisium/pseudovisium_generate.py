@@ -23,6 +23,8 @@ from pathlib import Path
 import os
 import tempfile
 import shutil
+import subprocess
+import datetime
 
 
 def delete_temporary_files():
@@ -1188,7 +1190,12 @@ def generate_pv(
         coord_to_um_conversion (float, optional): The conversion factor from coordinates to micrometers. Defaults to 1.
         spot_diameter (float, optional): The diameter of the spot. Defaults to None.
     """
-    print(cell_id_colname)
+    output = subprocess.check_output(['pip', 'freeze']).decode('utf-8').strip().split('\n')
+    version = [x for x in output if 'Pseudovisium' in x]
+    date = str(datetime.datetime.now().date())
+    print("You are using version: ",version)
+    print("Date: ",date)
+
     try:
 
         start = time.time()
