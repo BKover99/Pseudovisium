@@ -28,7 +28,7 @@ from statsmodels.stats.multitest import multipletests
 warnings.filterwarnings("ignore",category=FutureWarning)
 
 
-def generate_qc_report(folders, output_folder=os.getcwd(), gene_names=["RYR3", "AQP4", "THBS1"], include_morans_i=False,max_workers=4,normalisation=False,save_plots=False):
+def generate_qc_report(folders, output_folder=os.getcwd(), gene_names=["RYR3", "AQP4", "THBS1"], include_morans_i=False,max_workers=4,normalisation=False,save_plots=False,squidpy=False):
     """
     Generate a QC report for Pseudovisium output.
 
@@ -44,6 +44,13 @@ def generate_qc_report(folders, output_folder=os.getcwd(), gene_names=["RYR3", "
 
     if save_plots:
         print("Plots will be saved")
+    if squidpy:
+        print("Going ahead with the squidpy implementation. Only worth doing for large datasets.")
+        print("Loading squidpy and scanpy")
+        global sq
+        global sc
+        import squidpy as sq
+        import scanpy as sc
     #if any entry in folders lacks final /, then add
     folders = [folder if folder[-1]=="/" else folder + "/" for folder in folders]
     #same with output_folder
@@ -55,8 +62,12 @@ def generate_qc_report(folders, output_folder=os.getcwd(), gene_names=["RYR3", "
         dataset_name = folder.split("/")[-2]
 
         # Load files
-        tissue_positions_list = pd.read_csv(folder + "spatial/tissue_positions_list.csv", header=None)
+        try:
+            tissue_positions_list = pd.read_csv(folder + "spatial/tissue_positions_list.csv", header=None)
+        except:
+            tissue_positions_list = pd.read_csv(folder + "spatial/tissue_positions.csv", header=0)
         tissue_positions_list.columns = ["barcode", "in_tissue", "tissue_col", "tissue_row", "x", "y"]
+        print(tissue_positions_list)
         matrix = pd.read_csv(folder + "matrix.mtx", header=3, sep=" ")
         matrix.columns = ["Gene_ID", "Barcode_ID", "Counts"]
         features = pd.read_csv(folder + "features.tsv", header=None, sep="\t")
@@ -66,11 +77,19 @@ def generate_qc_report(folders, output_folder=os.getcwd(), gene_names=["RYR3", "
         barcodes.columns = ["Barcode_ID"]
         barcodes["index_col"] = barcodes.index + 1
 
-        arguments = json.load(open(folder + "arguments.json"))
+        visium=False
+        try:
+            arguments = json.load(open(folder + "arguments.json"))
+        except:
+            visium=True
+            cell_info=False
+            quality_per_hexagon=False
+            quality_per_probe=False
         #if cell_id_colname is not NA, then we have cell info
-        cell_info= True if arguments["cell_id_colname"]!="NA" and arguments["cell_id_colname"]!="None" else False
-        quality_per_hexagon = arguments["quality_per_hexagon"]
-        quality_per_probe = arguments["quality_per_probe"]
+        if not visium:
+            cell_info= True if arguments["cell_id_colname"]!="NA" and arguments["cell_id_colname"]!="None" else False
+            quality_per_hexagon = arguments["quality_per_hexagon"]
+            quality_per_probe = arguments["quality_per_probe"]
 
         if quality_per_hexagon:
             hexagon_quality = pd.read_csv(folder + "spatial/quality_per_hexagon.csv", header=None)
@@ -92,29 +111,43 @@ def generate_qc_report(folders, output_folder=os.getcwd(), gene_names=["RYR3", "
             non_ctrl_probes_q_below_20 = non_ctrl_probes[non_ctrl_probes["Quality"]<20]
             pct_non_ctrl_probes_q_below_20 = len(non_ctrl_probes_q_below_20)/len(non_ctrl_probes)
             
-        
         if cell_info:
             pv_cell_hex = pd.read_csv(folder + "spatial/pv_cell_hex.csv", header=None)
             pv_cell_hex.columns = ["Cell_ID", "Hexagon_ID", "Count"]
             pv_cell_hex["Hexagon_ID"] = pv_cell_hex["Hexagon_ID"]
 
 
+        if not visium:
+            arguments = json.load(open(folder + "arguments.json"))
+            hexagon_size = arguments["hexagon_size"]
+            image_pixels_per_um = arguments["image_pixels_per_um"]
+        else:
+            #load scalefactors
+            scalefactors = json.load(open(folder + "spatial/scalefactors_json.json"))
+            spot_diam = scalefactors["spot_diameter_fullres"]
+            real_diam = 55
+            micron_per_pixel = real_diam/spot_diam
+            hexagon_size = float(1/micron_per_pixel*50)
+            image_pixels_per_um = float(1/micron_per_pixel)
+        #check if there are any 1 values for in_tissue. If there are, then only keep those, if there arent, keep everything
 
-
-        arguments = json.load(open(folder + "arguments.json"))
-        hexagon_size = arguments["hexagon_size"]
-        image_pixels_per_um = arguments["image_pixels_per_um"]
-
-        tissue_positions_list = tissue_positions_list[tissue_positions_list["in_tissue"] == 1]
-        tissue_positions_list["barcode_id"] = [barcodes[barcodes["Barcode_ID"] == barcode].index_col.values[0] for barcode in tissue_positions_list["barcode"]]
+        tissue_positions_list = tissue_positions_list[tissue_positions_list["in_tissue"] == 1] if 1 in tissue_positions_list["in_tissue"].values else tissue_positions_list
+        
+        tissue_positions_list["barcode_id"] = [barcodes[barcodes["Barcode_ID"] == barcode].index_col.values[0] if barcode in barcodes["Barcode_ID"].values else -1 for barcode in tissue_positions_list["barcode"]]
+        #remove entries with barcode_id -1
+        tissue_positions_list = tissue_positions_list[tissue_positions_list["barcode_id"] != -1]
+        #sort by barcodeid and reset index
+        tissue_positions_list = tissue_positions_list.sort_values(by="barcode_id").reset_index(drop=True)
+        
         in_tissue_barcodes = tissue_positions_list["barcode"].index + 1
 
         n_barcodes_per_tissue = len(tissue_positions_list)
 
+        
         # Join the x and y columns from tissue_positions_list based on Barcode_ID and barcode_id
         matrix_joined = pd.merge(matrix, tissue_positions_list[["barcode_id", "x", "y"]], left_on="Barcode_ID", right_on="barcode_id")
         matrix_joined = pd.merge(matrix_joined, features[["Gene_ID", "index_col"]], left_on="Gene_ID", right_on="index_col")
-
+        
         if quality_per_hexagon:
             #in hexagon_quality keep only rows where hexagon_id is in index_col
             hexagon_quality = hexagon_quality[hexagon_quality["Hexagon_ID"].isin(matrix_joined["barcode_id"])]
@@ -129,7 +162,9 @@ def generate_qc_report(folders, output_folder=os.getcwd(), gene_names=["RYR3", "
         probe_names = grouped_matrix[grouped_matrix > 0.05 * n_barcodes_per_tissue].index.values
 
         grouped_matrix = matrix_joined.groupby("Barcode_ID")["Counts"].sum()
+        
         median_counts = np.median(grouped_matrix)
+
         cv_counts = np.std(grouped_matrix) / np.mean(grouped_matrix)
 
         grouped_matrix = matrix_joined.groupby("Barcode_ID")["Gene_ID_y"].count()
@@ -176,9 +211,6 @@ def generate_qc_report(folders, output_folder=os.getcwd(), gene_names=["RYR3", "
             density_morans_i = get_morans_i("density", tissue_positions_pv_cell_hex_sum, tissue_positions_list,max_workers=max_workers) 
             
 
-
-
-
         plot_df = not_working_probe_based_on_sum(matrix_joined, sample_id=dataset_name)
         not_working_probes = plot_df[plot_df["Probe category"]=="Bad"].index.values
         n_probes_not_working = len(not_working_probes)
@@ -212,7 +244,7 @@ def generate_qc_report(folders, output_folder=os.getcwd(), gene_names=["RYR3", "
         }
 
         if include_morans_i:
-            replicate_data["morans_i"] = get_morans_i("all", matrix_joined, tissue_positions_list,max_workers=max_workers)
+            replicate_data["morans_i"] = get_morans_i("all", matrix_joined, tissue_positions_list,max_workers=max_workers,folder=folder,squidpy=squidpy)
             plot_df_morans_i = not_working_probe_based_on_morans_i(replicate_data["morans_i"], sample_id=dataset_name)
             not_working_probes = plot_df_morans_i[plot_df_morans_i["Probe category"]=="Bad"].index.values
             n_probes_not_working = len(not_working_probes)
@@ -1094,8 +1126,12 @@ def not_working_probe_based_on_sum(matrix_joined,sample_id="Sample1"):
     plot_df["log_counts"] = np.log10(plot_df["Counts"])
     plot_df["p"] = 0
     plot_df["fdr"] = 1
-
     neg_probes_count = plot_df[plot_df["Probe category"]==1]["log_counts"]
+    if len(neg_probes_count) == 0:
+        #all probes are good
+        plot_df["Probe category"] = "Good"
+        plot_df["Sample"] = sample_id
+        return plot_df
     mean = np.mean(neg_probes_count)
     std = np.std(neg_probes_count)
 
@@ -1117,9 +1153,6 @@ def not_working_probe_based_on_sum(matrix_joined,sample_id="Sample1"):
     #order based on probe category
     plot_df = plot_df.sort_values("Probe category")
     return plot_df
-
-
-
 
 
 
@@ -1376,7 +1409,6 @@ def get_df_for_gene(matrix_joined, tissue_positions_list, gene_name, normalised=
         counts = np.append(counts, count)
     df = pd.DataFrame({"x": x, "y": y, "counts": counts})
     return df.sort_values("counts", ascending=False).drop_duplicates(subset=["x", "y"])
-
 
 
 def hexagon_plot_to_html(hexagon_df, hexagon_size, image_pixels_per_um, gene_name, dataset_name,morans_i=None,save_plot=False,output_folder=None):
@@ -1651,7 +1683,7 @@ def process_gene(gene, matrix_joined, tissue_positions_list):
     mi = Moran(gene_df["counts"], w, permutations=0)
     return {"gene": gene, "Morans_I": mi.I}
 
-def get_morans_i(gene_name, matrix_joined, tissue_positions_list, max_workers=4):
+def get_morans_i(gene_name, matrix_joined, tissue_positions_list, max_workers=4,squidpy=False,folder=None):
     """
     Calculate Moran's I values for a specific gene or for all genes.
 
@@ -1665,8 +1697,8 @@ def get_morans_i(gene_name, matrix_joined, tissue_positions_list, max_workers=4)
         pandas.DataFrame or float: If gene_name is "all", returns a DataFrame with Moran's I values for all genes.
                                    If gene_name is a specific gene, returns the Moran's I value for that gene.
     """
-
-    if gene_name == "all":
+    
+    if gene_name == "all" and not squidpy:
         unique_genes = matrix_joined["Gene_ID_y"].unique()
         #remove those unique genes which have less than total 100 counts
         #lowly_expressed_genes = matrix_joined.groupby("Gene_ID_y")["Counts"].sum()
@@ -1678,12 +1710,32 @@ def get_morans_i(gene_name, matrix_joined, tissue_positions_list, max_workers=4)
             results = list(tqdm(executor.map(process_gene, unique_genes, [matrix_joined]*len(unique_genes), [tissue_positions_list]*len(unique_genes)), total=len(unique_genes), desc="Processing genes"))
         
         res_df = pd.DataFrame(results)
+        print(res_df)
         #append the lowly expressed genes to the end of the dataframe with a morans i of 0
         #res_df = pd.concat([res_df,pd.DataFrame({"gene":lowly_expressed_genes,"Morans_I":0})],axis=0)
-        
+        print(res_df.head(5))
+        print(res_df.shape)
         return res_df
     
-    #suppress warnings
+    elif gene_name == "all" and squidpy:
+        print("folder", folder)
+        adata = sq.read.visium(folder,library_id="library")
+        print("Filtering genes and cells")
+        sc.pp.filter_genes(adata, min_counts=10)
+        sc.pp.filter_cells(adata, min_counts=100)
+        print("Normalizing and logging data")
+        sc.pp.normalize_total(adata)
+        sc.pp.log1p(adata)
+        print("Calculating spatial neighbors")
+        sq.gr.spatial_neighbors(adata, radius=250, coord_type="generic", delaunay=True)
+        print("Calculating Moran's I")
+        sq.gr.spatial_autocorr(adata, mode="moran", n_perms=1, n_jobs=max_workers)
+        df = adata.uns["moranI"]
+        #rename index to gene
+        df["gene"] = df.index
+        #rename I to Morans_I
+        df = df.rename(columns={"I":"Morans_I"})
+        return df
     
     elif gene_name == "features":
         mat = matrix_joined.groupby("Barcode_ID").count()
@@ -1881,10 +1933,11 @@ def main():
     parser.add_argument("-max_workers", "--mw", type=int, default=4, help="Number of workers to use for parallel processing")
     parser.add_argument("-normalisation","--n",action="store_true",help="Normalise the counts by the total counts per cell")
     parser.add_argument("--save_plots","-sp",action="store_true",help="Save generate plot as publication ready figures.")
+    parser.add_argument("--squidpy","-sq",action="store_true",help="Use squidpy to calculate Moran's I")
 
     args = parser.parse_args()
 
-    generate_qc_report(args.folders, args.output_folder, args.gene_names, args.include_morans_i, max_workers=args.mw,normalisation=args.n,save_plots=args.save_plots)
+    generate_qc_report(args.folders, args.output_folder, args.gene_names, args.include_morans_i, max_workers=args.mw,normalisation=args.n,save_plots=args.save_plots,squidpy=args.squidpy)  
 
 
 if __name__ == "__main__":

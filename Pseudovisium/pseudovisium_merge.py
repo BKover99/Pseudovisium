@@ -22,7 +22,7 @@ def from_h5_to_files(fold):
     #look for h5 ending file
     h5file = [f for f in os.listdir(fold) if f.endswith(".h5")][0]
     ad = sc.read_10x_h5(fold + h5file)
-    ad = ad.var_names_make_unique()
+    ad.var_names_make_unique()
     features = pd.DataFrame(ad.var.index)
     features[1] = features[0]
     features[2] = "Gene Expression"
@@ -58,6 +58,26 @@ def load_data(folder):
     
     tissue_positions_list = pd.read_csv(folder + "/spatial/tissue_positions_list.csv", header=None)
     tissue_positions_list.columns = ["barcode", "in_tissue", "tissue_col", "tissue_row", "x", "y"]
+    
+    scalefactors = json.load(open(folder + "/spatial/scalefactors_json.json"))
+
+    #check if there is an arguments.json file in the folder if yes it is pv if not it is v
+    data_source = "pv" if scalefactors["fiducial_diameter_fullres"]==0 else "v"
+
+
+    #make sure all coordinates are positive
+    #check if either tissue_col, tissue_row, x or y is negative, then find the minimum and add the absolute value to all
+    if data_source == "pv":
+        if tissue_positions_list["tissue_col"].min() < 0:
+            tissue_positions_list["tissue_col"] = tissue_positions_list["tissue_col"] + abs(tissue_positions_list["tissue_col"].min())
+        if tissue_positions_list["tissue_row"].min() < 0:
+            tissue_positions_list["tissue_row"] = tissue_positions_list["tissue_row"] + abs(tissue_positions_list["tissue_row"].min())
+        if tissue_positions_list["x"].min() < 0:
+            tissue_positions_list["x"] = tissue_positions_list["x"] + abs(tissue_positions_list["x"].min())
+        if tissue_positions_list["y"].min() < 0:
+            tissue_positions_list["y"] = tissue_positions_list["y"] + abs(tissue_positions_list["y"].min())
+
+
     tissue_positions_list["barcode"] = [f"{barcode}_{dataset_name}" for barcode in tissue_positions_list["barcode"]]
     tissue_positions_list["dataset"] = dataset_name
     barcode_indices = []
@@ -81,10 +101,6 @@ def load_data(folder):
     
     
     
-    scalefactors = json.load(open(folder + "/spatial/scalefactors_json.json"))
-
-    #check if there is an arguments.json file in the folder if yes it is pv if not it is v
-    data_source = "pv" if os.path.exists(folder + "/arguments.json") else "v"
     if data_source == "v":
         #get correction factor
         spot_diam = scalefactors["spot_diameter_fullres"]
@@ -92,8 +108,6 @@ def load_data(folder):
         micron_per_pixel = real_diam/spot_diam #this will be about 1/2
         tissue_positions_list["x"] = tissue_positions_list["x"]*micron_per_pixel
         tissue_positions_list["y"] = tissue_positions_list["y"]*micron_per_pixel
-        scalefactors["tissue_hires_scalef"] = scalefactors["tissue_hires_scalef"] * micron_per_pixel 
-
 
     image_exists = os.path.exists(folder + "/spatial/tissue_hires_image.png")
     if image_exists:
@@ -139,6 +153,14 @@ def merge_data(folders, pv_format=False):
     scalefactor_hires_vals=[]
     for folder in folders:
         scalefactors = json.load(open(folder+"/spatial/scalefactors_json.json"))
+        data_source = "pv" if scalefactors["fiducial_diameter_fullres"]==0 else "v"
+        real_spot_diam_pixel = 100
+        if data_source == "v":
+            spot_diam = scalefactors["spot_diameter_fullres"]
+            real_diam = 55
+            micron_per_pixel = real_diam/spot_diam
+            real_spot_diam_pixel = 55*1/micron_per_pixel
+            scalefactors["tissue_hires_scalef"] = scalefactors["tissue_hires_scalef"] / micron_per_pixel
         scalefactor_hires_vals.append(scalefactors["tissue_hires_scalef"])
     
     min_scalefactor = min(scalefactor_hires_vals)
@@ -149,6 +171,9 @@ def merge_data(folders, pv_format=False):
     scalefactor_hires = min_scalefactor 
     min_scalefactor_folder = folders[scalefactor_hires_vals.index(min_scalefactor)]
     scalefactors_for_save = json.load(open(min_scalefactor_folder+"/spatial/scalefactors_json.json"))
+    scalefactors_for_save["tissue_hires_scalef"] = scalefactor_hires
+    scalefactors_for_save["spot_diameter_fullres"] = real_spot_diam_pixel
+    
     
     max_x_range = 0
     max_y_range = 0
@@ -185,10 +210,10 @@ def merge_data(folders, pv_format=False):
             nested_dict[dataset_name]["arguments"] = arguments
         
         tissue_positions_list = data["tissue_positions_list"]
-        max_x_range = max(max_x_range,tissue_positions_list["x"].max())*1.1
-        max_y_range = max(max_y_range,tissue_positions_list["y"].max())*1.1
-        max_col_range = max(max_col_dims,tissue_positions_list["tissue_col"].max())*1.1
-        max_row_range = max(max_row_dims,tissue_positions_list["tissue_row"].max())*1.1
+        max_x_range = max(max_x_range,tissue_positions_list["x"].max())*1.001
+        max_y_range = max(max_y_range,tissue_positions_list["y"].max())*1.001
+        max_col_range = max(max_col_dims,tissue_positions_list["tissue_col"].max())*1.001
+        max_row_range = max(max_row_dims,tissue_positions_list["tissue_row"].max())*1.001
         
     return dataset_names, nested_dict, features_df, barcodes_df, max_x_range, max_y_range, max_col_range, max_row_range, scalefactor_hires, scalefactors_for_save, resize_factors
 
@@ -285,7 +310,6 @@ def stitch_images(nested_dict, grid, max_x_range, max_y_range, max_col_range, ma
     
     new_tissue_positions_list.drop(["dataset","barcode_id"],axis=1,inplace=True)
     return new_tissue_positions_list, stitched_image
-
 
 
 
@@ -415,7 +439,13 @@ def save_output(folderpath, scalefactors_for_save, barcodes_df_all, new_tissue_p
     
     print("Generating tissue_hires_image.png")
     plt.imsave(folderpath +'/spatial/tissue_hires_image.png', stitched_image)
-    lowres_image = cv2.resize(stitched_image,(int(stitched_image.shape[1]/10),int(stitched_image.shape[0]/10)))
+    lowres_image = cv2.resize(stitched_image,(int(stitched_image.shape[1]/5),int(stitched_image.shape[0]/5)))
+    #load new scalefactors back in
+    scalefactors = json.load(open(folderpath +'/spatial/scalefactors_json.json'))
+    scalefactors["tissue_lowres_scalef"] = scalefactors["tissue_hires_scalef"]/5
+    with open(folderpath +'/spatial/scalefactors_json.json', 'w') as f:
+        json.dump(scalefactors, f)
+
     print("Generating tissue_lowres_image.png")
     plt.imsave(folderpath +'/spatial/tissue_lowres_image.png', lowres_image)
 
