@@ -11,6 +11,8 @@ import scanpy as sc
 import scipy.io
 import h5py
 from pathlib import Path
+import subprocess
+import datetime
 
 def from_h5_to_files(fold):
     """
@@ -303,9 +305,9 @@ def stitch_images(nested_dict, grid, max_x_range, max_y_range, max_col_range, ma
             image_to_add = nested_dict[dataset_names[dataset_idx]]["image"]
             if len(image_to_add.shape) == 2:
                 image_to_add = np.stack((image_to_add,)*3,axis=-1)
-            image_to_add = np.pad(image_to_add,((0,max(0,int(max_x_range*scalefactor_hires)-image_to_add.shape[0])),(0,max(0,int(max_y_range*scalefactor_hires)-image_to_add.shape[1])),(0,0)))
+            image_to_add = np.pad(image_to_add,((0,max(0,int(max_x_range*scalefactor_hires)-image_to_add.shape[0])),(0,max(0,int(max_y_range*scalefactor_hires)-image_to_add.shape[1])),(0,0)), constant_values=255) 
             image_to_add = image_to_add[0:int(max_x_range*scalefactor_hires),0:int(max_y_range*scalefactor_hires)]
-            image_to_add = np.pad(image_to_add,((0,int(max_x_range*scalefactor_hires)-image_to_add.shape[0]),(0,int(max_y_range*scalefactor_hires)-image_to_add.shape[1]),(0,0)))
+            image_to_add = np.pad(image_to_add,((0,int(max_x_range*scalefactor_hires)-image_to_add.shape[0]),(0,int(max_y_range*scalefactor_hires)-image_to_add.shape[1]),(0,0)), constant_values=255) 
             stitched_image[i*int(max_x_range*scalefactor_hires):(i+1)*int(max_x_range*scalefactor_hires),j*int(max_y_range*scalefactor_hires):(j+1)*int(max_y_range*scalefactor_hires),:] = image_to_add
     
     new_tissue_positions_list.drop(["dataset","barcode_id"],axis=1,inplace=True)
@@ -459,6 +461,11 @@ def merge_visium(folders, output_path, project_name, pv_format=False):
         project_name (str): Project name for output.
         pv_format (bool, optional): Indicate if input is in Pseudovisium format. Defaults to False.
     """
+    output = subprocess.check_output(['pip', 'freeze']).decode('utf-8').strip().split('\n')
+    version = [x for x in output if 'Pseudovisium' in x]
+    date = str(datetime.datetime.now().date())
+    print("You are using version: ",version)
+    print("Date: ",date)
     
     dataset_names, nested_dict, features_df, barcodes_df, max_x_range, max_y_range, max_col_range, max_row_range, scalefactor_hires, scalefactors_for_save, resize_factors = merge_data(folders, pv_format)
     n_rows = max(3,int(np.sqrt(len(folders))))

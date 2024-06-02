@@ -20,9 +20,6 @@ import scipy.io
 import h5py
 import scipy.sparse
 from pathlib import Path
-import os
-import tempfile
-import shutil
 import subprocess
 import datetime
 
@@ -969,7 +966,7 @@ def create_pseudovisium(
         print(
             "No image file provided. Creating blank tissue_hires_image.png and tissue_lowres_image.png files in spatial folder."
         )
-        image = np.zeros((1000, 1000))
+        image = np.ones((1000, 1000)) * 255
         cv2.imwrite(folderpath + "/spatial/tissue_hires_image.png", image)
         cv2.imwrite(folderpath + "/spatial/tissue_lowres_image.png", image)
 
