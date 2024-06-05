@@ -374,11 +374,18 @@ def generate_dashboard_html(replicates_data, gene_names, include_morans_i,qualit
     print("quality_per_probe: ",quality_per_probe)
     print("cell_info: ",cell_info)
 
-    output = subprocess.check_output(['pip', 'freeze']).decode('utf-8').strip().split('\n')
-    version = [x for x in output if 'Pseudovisium' in x]
-    date = str(datetime.datetime.now().date())
-    print("You are using version: ",version)
-    print("Date: ",date)
+    try:
+        output = subprocess.check_output(['pip', 'freeze']).decode('utf-8').strip().split('\n')
+        version = [x for x in output if 'Pseudovisium' in x]
+        date = str(datetime.datetime.now().date())
+        print("You are using version: ",version)
+        print("Date: ",date)
+    except:
+        output = subprocess.check_output(['pip3', 'freeze']).decode('utf-8').strip().split('\n')
+        version = [x for x in output if 'Pseudovisium' in x]
+        date = str(datetime.datetime.now().date())
+        print("You are using version: ",version)
+        print("Date: ",date)
 
 
 

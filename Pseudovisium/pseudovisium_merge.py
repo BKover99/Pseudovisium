@@ -100,8 +100,9 @@ def load_data(folder):
     
     matrix = pd.read_csv(matrix_file, header=3, sep=" ")
     matrix.columns = ["Gene_ID", "Barcode_ID", "Counts"]
-    
-    
+
+    #make all gene ids uppercase for simplicity
+    features["Gene_ID"] = features["Gene_ID"].str.upper()
     
     if data_source == "v":
         #get correction factor
@@ -212,14 +213,14 @@ def merge_data(folders, pv_format=False):
             nested_dict[dataset_name]["arguments"] = arguments
         
         tissue_positions_list = data["tissue_positions_list"]
-        max_x_range = max(max_x_range,tissue_positions_list["x"].max())*1.001
-        max_y_range = max(max_y_range,tissue_positions_list["y"].max())*1.001
-        max_col_range = max(max_col_dims,tissue_positions_list["tissue_col"].max())*1.001
-        max_row_range = max(max_row_dims,tissue_positions_list["tissue_row"].max())*1.001
+        max_x_range = max(max_x_range,tissue_positions_list["x"].max())*1.00001
+        max_y_range = max(max_y_range,tissue_positions_list["y"].max())*1.00001
+        max_col_range = max(max_col_dims,tissue_positions_list["tissue_col"].max())*1.00001
+        max_row_range = max(max_row_dims,tissue_positions_list["tissue_row"].max())*1.00001
         
     return dataset_names, nested_dict, features_df, barcodes_df, max_x_range, max_y_range, max_col_range, max_row_range, scalefactor_hires, scalefactors_for_save, resize_factors
 
-def consensus_features(features_df):
+def consensus_features(features_df,only_common):
     """
     Create a consensus index for features across all datasets.
 
@@ -229,12 +230,29 @@ def consensus_features(features_df):
     Returns:
         pd.DataFrame: Updated features DataFrame with consensus index.
     """
+
     features_df_all = features_df.copy()
+    #save to csv
+    features_df_all.to_csv("features_df_all1.csv")
+    
+    if only_common:
+        common_genes = []
+        for gene_id in features_df_all["Gene_ID"].unique():
+            gene_datasets = features_df_all[features_df_all["Gene_ID"]==gene_id]["dataset"].unique()
+            if len(gene_datasets) == features_df_all["dataset"].nunique():
+                common_genes.append(gene_id)
+
+        features_df_all = features_df_all[features_df_all["Gene_ID"].isin(common_genes)]
+        #Print number of such genes
+        print(f"Number of genes present in all datasets: {len(common_genes)}")
+
     unique_gene_ids = features_df_all["Gene_ID"].unique()
+
     features_df_all["consensus_index"] = features_df_all["Gene_ID"].apply(lambda x: np.where(unique_gene_ids==x)[0][0]+1)
+    features_df_all.to_csv("features_df_all2.csv")
     return features_df_all
 
-def adjust_matrix_barcodes(nested_dict, features_df_all, pv_format=False):
+def adjust_matrix_barcodes(nested_dict, features_df_all, pv_format=False,only_common=True):
     """
     Adjust matrix and barcode IDs in the nested dictionary.
 
@@ -250,10 +268,26 @@ def adjust_matrix_barcodes(nested_dict, features_df_all, pv_format=False):
     for dataset_name in nested_dict.keys():
         print(dataset_name)
         matrix = nested_dict[dataset_name]["matrix"]
+        matrix.to_csv("matrix1"+dataset_name+".csv")
         features_all = features_df_all[features_df_all["dataset"]==dataset_name]
-        for gene_id in matrix["Gene_ID"].unique():
-            original_index,consensus_index = features_all[features_all["index_col"]==gene_id][["index_col","consensus_index"]].values[0]
-            matrix.loc[matrix["Gene_ID"]==gene_id,"Gene_ID"] = consensus_index
+        matrix["new_gene_id"] = matrix["Gene_ID"]
+        if only_common:
+            all_features_indices = features_all["index_col"].unique()
+            matrix = matrix[matrix["Gene_ID"].isin(all_features_indices)]
+
+            for gene_id in matrix["Gene_ID"].unique():
+                if gene_id in features_all["index_col"].values:
+                    original_index, consensus_index = features_all[features_all["index_col"]==gene_id][["index_col", "consensus_index"]].values[0]
+                    matrix.loc[matrix["Gene_ID"]==gene_id, "new_gene_id"] = consensus_index
+                else:
+                    matrix = matrix[matrix["Gene_ID"] != gene_id]
+        else:
+            for gene_id in matrix["Gene_ID"].unique():
+                original_index,consensus_index = features_all[features_all["index_col"]==gene_id][["index_col","consensus_index"]].values[0]
+                matrix.loc[matrix["Gene_ID"]==gene_id,"new_gene_id"] = consensus_index
+        
+        matrix = matrix[["Barcode_ID","new_gene_id","Counts"]]
+        matrix.columns = ["Barcode_ID","Gene_ID","Counts"]
         
         matrix["Barcode_ID"] = matrix["Barcode_ID"] + n_barcodes_before
         nested_dict[dataset_name]["matrix"] = matrix
@@ -261,7 +295,7 @@ def adjust_matrix_barcodes(nested_dict, features_df_all, pv_format=False):
             pv_cell_hex = nested_dict[dataset_name]["pv_cell_hex"]
             pv_cell_hex["Hexagon_ID"] = pv_cell_hex["Hexagon_ID"] + n_barcodes_before
             nested_dict[dataset_name]["pv_cell_hex"] = pv_cell_hex
-            
+        matrix.to_csv("matrix2"+dataset_name+".csv")
         n_barcodes_before += len(nested_dict[dataset_name]["barcodes"])
         print("n_barcodes_before",n_barcodes_before)
     return nested_dict, n_barcodes_before
@@ -305,9 +339,9 @@ def stitch_images(nested_dict, grid, max_x_range, max_y_range, max_col_range, ma
             image_to_add = nested_dict[dataset_names[dataset_idx]]["image"]
             if len(image_to_add.shape) == 2:
                 image_to_add = np.stack((image_to_add,)*3,axis=-1)
-            image_to_add = np.pad(image_to_add,((0,max(0,int(max_x_range*scalefactor_hires)-image_to_add.shape[0])),(0,max(0,int(max_y_range*scalefactor_hires)-image_to_add.shape[1])),(0,0)), constant_values=255) 
+            image_to_add = np.pad(image_to_add,((0,max(0,int(max_x_range*scalefactor_hires)-image_to_add.shape[0])),(0,max(0,int(max_y_range*scalefactor_hires)-image_to_add.shape[1])),(0,0)), constant_values=1) 
             image_to_add = image_to_add[0:int(max_x_range*scalefactor_hires),0:int(max_y_range*scalefactor_hires)]
-            image_to_add = np.pad(image_to_add,((0,int(max_x_range*scalefactor_hires)-image_to_add.shape[0]),(0,int(max_y_range*scalefactor_hires)-image_to_add.shape[1]),(0,0)), constant_values=255) 
+            image_to_add = np.pad(image_to_add,((0,int(max_x_range*scalefactor_hires)-image_to_add.shape[0]),(0,int(max_y_range*scalefactor_hires)-image_to_add.shape[1]),(0,0)), constant_values=1) 
             stitched_image[i*int(max_x_range*scalefactor_hires):(i+1)*int(max_x_range*scalefactor_hires),j*int(max_y_range*scalefactor_hires):(j+1)*int(max_y_range*scalefactor_hires),:] = image_to_add
     
     new_tissue_positions_list.drop(["dataset","barcode_id"],axis=1,inplace=True)
@@ -398,12 +432,13 @@ def save_output(folderpath, scalefactors_for_save, barcodes_df_all, new_tissue_p
         pv_cell_hex = pd.concat([nested_dict[dataset_name]["pv_cell_hex"] for dataset_name in dataset_names])
         print("Generating pv_cell_hex.csv")
         pv_cell_hex.to_csv(folderpath +'/spatial/pv_cell_hex.csv',index=False,header=False)
-        
+    
+    #remove duplicates
     features_df_all = features_df_all.sort_values("consensus_index").drop_duplicates(subset=["Gene_ID"])
     features_df_all["Gene_Name"]=features_df_all["Gene_ID"]
     features_df_all["Type"]="Gene expression"
     features_df_all = features_df_all[["Gene_ID","Gene_Name","Type"]]
-    print
+
     features_df_all.to_csv(folderpath +'/features.tsv',sep='\t',index=False,header=False)
     
     with open(folderpath + '/features.tsv', 'rb') as f_in, gzip.open(folderpath + '/features.tsv.gz', 'wb') as f_out:
@@ -412,10 +447,14 @@ def save_output(folderpath, scalefactors_for_save, barcodes_df_all, new_tissue_p
     matrix_all = pd.concat([nested_dict[dataset_name]["matrix"] for dataset_name in dataset_names])
     #sort Counts
     matrix_all = matrix_all.sort_values("Counts",ascending=False)
-    matrix_all = matrix_all.drop_duplicates(subset=["Barcode_ID","Gene_ID"])
+    #collapse "Barcode_ID","Gene_ID" duplicates
+    matrix_all = matrix_all.groupby(["Gene_ID","Barcode_ID"]).agg({"Counts":"sum"}).reset_index()
+    
 
     print("Generating matrix.mtx.gz")
     metadata = f'%%MatrixMarket matrix coordinate integer general\n%metadata_json: {{"software_version": "Pseudovisium", "format_version": 1}}\n{len(features_df_all)} {barcodes_df_all.shape[0]} {len(matrix_all)}'
+    #reorder columns in matrix_all
+    print("matrix_head before writing out", matrix_all.head(5))
     matrix_all.to_csv(folderpath +'/matrix.mtx',index=False,header=False,sep=" ")
     with open(folderpath + '/matrix.mtx', 'r') as original: data = original.read()
     with open(folderpath + '/matrix.mtx', 'w') as modified: modified.write(metadata + '\n' + data)
@@ -432,8 +471,8 @@ def save_output(folderpath, scalefactors_for_save, barcodes_df_all, new_tissue_p
     matrix_all["Gene_ID"] = matrix_all["Gene_ID"].apply(lambda x: features_df_all["Gene_ID"].iloc[x])
 
     matrix_all_pivoted = matrix_all.pivot(index='Gene_ID', columns='Barcode_ID', values='Counts').fillna(0)
-    print(matrix_all_pivoted.head(5))
     matrix_sparse = scipy.sparse.csr_matrix(matrix_all_pivoted.values).T
+    print(matrix_sparse)
     adata = sc.AnnData(X=matrix_sparse, obs=pd.DataFrame(index=matrix_all_pivoted.columns), var=pd.DataFrame(index=matrix_all_pivoted.index))
 
     write_10X_h5(adata, folderpath + '/filtered_feature_bc_matrix.h5')
@@ -451,7 +490,7 @@ def save_output(folderpath, scalefactors_for_save, barcodes_df_all, new_tissue_p
     print("Generating tissue_lowres_image.png")
     plt.imsave(folderpath +'/spatial/tissue_lowres_image.png', lowres_image)
 
-def merge_visium(folders, output_path, project_name, pv_format=False):
+def merge_visium(folders, output_path, project_name, pv_format=False,only_common=True):
     """
     Merge Visium output from multiple folders.
 
@@ -461,21 +500,27 @@ def merge_visium(folders, output_path, project_name, pv_format=False):
         project_name (str): Project name for output.
         pv_format (bool, optional): Indicate if input is in Pseudovisium format. Defaults to False.
     """
-    output = subprocess.check_output(['pip', 'freeze']).decode('utf-8').strip().split('\n')
-    version = [x for x in output if 'Pseudovisium' in x]
-    date = str(datetime.datetime.now().date())
-    print("You are using version: ",version)
-    print("Date: ",date)
+    try:
+        output = subprocess.check_output(['pip', 'freeze']).decode('utf-8').strip().split('\n')
+        version = [x for x in output if 'Pseudovisium' in x]
+        date = str(datetime.datetime.now().date())
+        print("You are using version: ",version)
+        print("Date: ",date)
+    except:
+        output = subprocess.check_output(['pip3', 'freeze']).decode('utf-8').strip().split('\n')
+        version = [x for x in output if 'Pseudovisium' in x]
+        date = str(datetime.datetime.now().date())
+        print("You are using version: ",version)
+        print("Date: ",date)
     
     dataset_names, nested_dict, features_df, barcodes_df, max_x_range, max_y_range, max_col_range, max_row_range, scalefactor_hires, scalefactors_for_save, resize_factors = merge_data(folders, pv_format)
     n_rows = max(3,int(np.sqrt(len(folders))))
     n_cols = int(np.ceil(len(folders)/n_rows))
     grid = [n_rows, n_cols]
-    features_df_all = consensus_features(features_df)
-    nested_dict, n_barcodes_before = adjust_matrix_barcodes(nested_dict, features_df_all, pv_format)
+    features_df_all = consensus_features(features_df,only_common)
+    nested_dict, n_barcodes_before = adjust_matrix_barcodes(nested_dict, features_df_all, pv_format,only_common)
     barcodes_df_all = barcodes_df.copy()
     barcodes_df_all.reset_index(drop=True,inplace=True)
-    barcodes_df_all["index_col"] = barcodes_df_all.index + 1
     barcodes_df_all.drop("dataset",axis=1,inplace=True)
     new_tissue_positions_list, stitched_image = stitch_images(nested_dict, grid, max_x_range, max_y_range,  max_col_range, max_row_range,scalefactor_hires)
     folderpath = output_path+ '/pseudovisium/' + project_name
@@ -493,10 +538,10 @@ def main():
     parser.add_argument("--output_path", "-o", default="/Users/k23030440/", help="Output folder path")
     parser.add_argument("--project_name", "-p", default="visium_merged", help="Project name for output")
     parser.add_argument("--pv_format", "-pvf", action="store_true", help="Indicate if input is in Pseudovisium format")
+    parser.add_argument("--only_common", "-oc", action="store_true", help="Only keep genes present in all datasets")
     args = parser.parse_args()
 
     folders = [folder+"/" if not folder.endswith("/") else folder for folder in args.folders]
-    merge_visium(folders, args.output_path, args.project_name, args.pv_format)
-
+    merge_visium(folders, args.output_path, args.project_name, args.pv_format, args.only_common)
 if __name__ == "__main__":
     main()

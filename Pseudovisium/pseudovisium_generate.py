@@ -963,12 +963,35 @@ def create_pseudovisium(
 
     else:
         # output a blank image
-        print(
-            "No image file provided. Creating blank tissue_hires_image.png and tissue_lowres_image.png files in spatial folder."
-        )
-        image = np.ones((1000, 1000)) * 255
+        # Create a white background image with tissue positions
+        print("No image file provided. Drawing tissue positions on a white background.")
+        
+        # Convert hexagon coordinates to pixel coordinates
+        pixel_coords = np.array([[int(x * tissue_hires_scalef), int(y * tissue_hires_scalef)] for x, y in zip(x, y)])
+        
+        # Find the maximum dimensions of the pixel coordinates
+        max_x = np.max(pixel_coords[:, 0])
+        max_y = np.max(pixel_coords[:, 1])
+        
+        # Create a white background image
+        image = np.ones((max_y + 100, max_x + 100, 3), dtype=np.uint8) * 255
+        
+        # Draw purple dots at the tissue positions
+        for coord in pixel_coords:
+            cv2.circle(image, tuple(coord), 3, (255, 0, 255), -1)
+        
+        # Save the high-resolution image
         cv2.imwrite(folderpath + "/spatial/tissue_hires_image.png", image)
-        cv2.imwrite(folderpath + "/spatial/tissue_lowres_image.png", image)
+        
+        # Resize the image for the low-resolution version
+        scale2 = 0.1
+        width = int(image.shape[1] * scale2)
+        height = int(image.shape[0] * scale2)
+        dim = (width, height)
+        resized = cv2.resize(image, dim, interpolation=cv2.INTER_AREA)
+        
+        # Save the low-resolution image
+        cv2.imwrite(folderpath + "/spatial/tissue_lowres_image.png", resized)
 
 
 #####################
@@ -1187,11 +1210,19 @@ def generate_pv(
         coord_to_um_conversion (float, optional): The conversion factor from coordinates to micrometers. Defaults to 1.
         spot_diameter (float, optional): The diameter of the spot. Defaults to None.
     """
-    output = subprocess.check_output(['pip', 'freeze']).decode('utf-8').strip().split('\n')
-    version = [x for x in output if 'Pseudovisium' in x]
-    date = str(datetime.datetime.now().date())
-    print("You are using version: ",version)
-    print("Date: ",date)
+    try:
+        output = subprocess.check_output(['pip', 'freeze']).decode('utf-8').strip().split('\n')
+        version = [x for x in output if 'Pseudovisium' in x]
+        date = str(datetime.datetime.now().date())
+        print("You are using version: ",version)
+        print("Date: ",date)
+    except:
+        output = subprocess.check_output(['pip3', 'freeze']).decode('utf-8').strip().split('\n')
+        version = [x for x in output if 'Pseudovisium' in x]
+        date = str(datetime.datetime.now().date())
+        print("You are using version: ",version)
+        print("Date: ",date)
+    
 
     try:
 
