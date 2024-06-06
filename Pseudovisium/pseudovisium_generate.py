@@ -640,6 +640,7 @@ def create_pseudovisium(
     probe_quality,
     cell_id_colname,
     img_file_path=None,
+    shift_to_positive=False,
     project_name="project",
     alignment_matrix_file=None,
     image_pixels_per_um=1 / 0.2125,
@@ -752,6 +753,21 @@ def create_pseudovisium(
             "pxl_col_in_fullres",
         ],
     )
+
+    if shift_to_positive:
+        min_array_row = hexagon_table["array_row"].min()
+        min_array_col = hexagon_table["array_col"].min()
+        min_pxl_row = hexagon_table["pxl_row_in_fullres"].min()
+        min_pxl_col = hexagon_table["pxl_col_in_fullres"].min()
+
+        if min_array_row < 0:
+            hexagon_table["array_row"] -= min_array_row
+        if min_array_col < 0:
+            hexagon_table["array_col"] -= min_array_col
+        if min_pxl_row < 0:
+            hexagon_table["pxl_row_in_fullres"] -= min_pxl_row
+        if min_pxl_col < 0:
+            hexagon_table["pxl_col_in_fullres"] -= min_pxl_col
 
     print("Creating tissue_positions_list.csv file in spatial folder.")
     hexagon_table.to_csv(
@@ -877,6 +893,7 @@ def create_pseudovisium(
         M = np.array([[1.0, 0.0, 0.0], [0.0, 1.0, 0.0], [0.0, 0.0, 1.0]])
         # Load the H&E image
     if img_file_path:
+        print("Image provided at {0}".format(img_file_path))
         # if img_filepath is tiff
         if img_file_path.endswith(".tiff") or img_file_path.endswith(".tif"):
             image = tifffile.imread(img_file_path)
@@ -966,19 +983,19 @@ def create_pseudovisium(
         # Create a white background image with tissue positions
         print("No image file provided. Drawing tissue positions on a white background.")
         
-        # Convert hexagon coordinates to pixel coordinates
-        pixel_coords = np.array([[int(x * tissue_hires_scalef), int(y * tissue_hires_scalef)] for x, y in zip(x, y)])
+        # Extract pixel coordinates from hexagon_table
+        pixel_coords = np.array([[int(row*tissue_hires_scalef), int(col*tissue_hires_scalef)] for row, col in zip(hexagon_table["pxl_row_in_fullres"], hexagon_table["pxl_col_in_fullres"])])
         
         # Find the maximum dimensions of the pixel coordinates
-        max_x = np.max(pixel_coords[:, 0])
-        max_y = np.max(pixel_coords[:, 1])
+        max_x = np.max(pixel_coords[:, 1])
+        max_y = np.max(pixel_coords[:, 0])
         
         # Create a white background image
         image = np.ones((max_y + 100, max_x + 100, 3), dtype=np.uint8) * 255
         
         # Draw purple dots at the tissue positions
         for coord in pixel_coords:
-            cv2.circle(image, tuple(coord), 3, (255, 0, 255), -1)
+            cv2.circle(image, tuple(coord[::-1]), 5, (255, 0, 255), -1)
         
         # Save the high-resolution image
         cv2.imwrite(folderpath + "/spatial/tissue_hires_image.png", image)
@@ -1152,6 +1169,7 @@ def visium_hd_curio_to_transcripts(folder, output, technology, x_col=None, y_col
 def generate_pv(
     csv_file,
     img_file_path=None,
+    shift_to_positive=False,
     hexagon_size=100,
     output_path=None,
     batch_size=1000000,
@@ -1356,6 +1374,7 @@ def generate_pv(
             probe_quality=probe_quality,
             cell_id_colname=cell_id_colname,
             img_file_path=img_file_path,
+            shift_to_positive=shift_to_positive,
             project_name=project_name,
             alignment_matrix_file=alignment_matrix_file,
             image_pixels_per_um=image_pixels_per_um,
@@ -1425,6 +1444,12 @@ def main():
     )
     parser.add_argument(
         "--img_file_path", "-i", type=str, help="Image file path", default=None
+    )
+    parser.add_argument(
+        "--shift_to_positive",
+        "-stp",
+        action="store_true",
+        help="Shift columns, rows, and full-resolution pixel values to positive if any are negative",
     )
     parser.add_argument(
         "--alignment_matrix_file",
@@ -1559,6 +1584,7 @@ def main():
     generate_pv(
         csv_file=args.csv_file,
         img_file_path=args.img_file_path,
+        shift_to_positive=args.shift_to_positive,
         hexagon_size=args.hexagon_size,
         output_path=args.output_path,
         batch_size=args.batch_size,

@@ -70,7 +70,6 @@ def generate_qc_report(folders, output_folder=os.getcwd(), gene_names=["RYR3", "
         except:
             tissue_positions_list = pd.read_csv(folder + "spatial/tissue_positions.csv", header=0)
         tissue_positions_list.columns = ["barcode", "in_tissue", "tissue_col", "tissue_row", "x", "y"]
-        print(tissue_positions_list)
         matrix = pd.read_csv(folder + "matrix.mtx", header=3, sep=" ")
         matrix.columns = ["Gene_ID", "Barcode_ID", "Counts"]
         features = pd.read_csv(folder + "features.tsv", header=None, sep="\t")
@@ -214,6 +213,31 @@ def generate_qc_report(folders, output_folder=os.getcwd(), gene_names=["RYR3", "
             density_morans_i = get_morans_i("density", tissue_positions_pv_cell_hex_sum, tissue_positions_list,max_workers=max_workers) 
             
 
+        #dynamic range - sensitivity measures
+        non_ctrl_genes = ~matrix_joined["Gene_ID_y"].str.contains("control|ctrl|code|Code|assign|Assign|pos|NegPrb|neg|Ctrl|blank|Control|Blank|BLANK")
+        filtered_matrix = matrix_joined[non_ctrl_genes]
+
+        # Within gene dynamic range
+        gene_range = filtered_matrix.groupby("Gene_ID_y")["Counts"].agg(['min', 'max'])
+        gene_range["range"] = gene_range["max"] - gene_range["min"]
+        max_range_gene = gene_range.loc[gene_range["range"].idxmax()]
+        within_gene_dynamic_range = np.log10(max_range_gene["range"])
+
+        # Between gene dynamic range
+        hexagon_gene_range = filtered_matrix.groupby(["Barcode_ID", "Gene_ID_y"])["Counts"].sum().reset_index()
+        hexagon_gene_range = hexagon_gene_range.groupby("Barcode_ID")["Counts"].agg(['min', 'max']).reset_index()
+        hexagon_gene_range["range"] = hexagon_gene_range["max"] - hexagon_gene_range["min"]
+        median_range = np.median(hexagon_gene_range["range"])
+        between_gene_dynamic_range = np.log10(median_range)
+
+        # Sum abundance range
+        gene_sums = filtered_matrix.groupby("Gene_ID_y")["Counts"].sum()
+        min_sum = gene_sums.min()
+        max_sum = gene_sums.max()
+        sum_abundance_range = np.log10(max_sum - min_sum)
+
+
+
         plot_df = not_working_probe_based_on_sum(matrix_joined, sample_id=dataset_name)
         not_working_probes = plot_df[plot_df["Probe category"]=="Bad"].index.values
         n_probes_not_working = len(not_working_probes)
@@ -228,6 +252,10 @@ def generate_qc_report(folders, output_folder=os.getcwd(), gene_names=["RYR3", "
                 "Number of genes in at least 5% of hexagons": int(pct5_plex),
                 "Median counts per hexagon": int(median_counts),
                 "Median features per hexagon": int(median_features),
+                "Within range dynamic range (log10)": within_gene_dynamic_range,
+                "Between gene dynamic range (log10)": between_gene_dynamic_range,
+                "Sum abundance range (log10)": sum_abundance_range,
+
                 "Total number of probes (inc. ctrl)": int(number_of_probes),
                 "Number of genes": int(number_of_genes),
                 "Proportion of neg_control probes": np.round(prop_neg_control, 5),
@@ -390,12 +418,12 @@ def generate_dashboard_html(replicates_data, gene_names, include_morans_i,qualit
 
 
     metrics_html = """
-        <div id="metric-details">
-            <h2>Counts Table</h2>
-            <table>
-                <thead>
-                    <tr>
-                        <th>Metric</th>
+    <div id="metric-details">
+        <h2>Counts Table</h2>
+        <table>
+            <thead>
+                <tr>
+                    <th>Metric</th>
     """
     for replicate_data in replicates_data:
         metrics_html += f"""
@@ -433,11 +461,34 @@ def generate_dashboard_html(replicates_data, gene_names, include_morans_i,qualit
     metrics_html += """
                     </tr>
                     <tr>
-                        <td>Proportion of neg_control probes</td>
+                        <td>Within range dynamic range (log10)</td>
         """
     for replicate_data in replicates_data:
         metrics_html += f"""
-                        <td>{replicate_data['metrics_table_data']['Proportion of neg_control probes']}</td>
+                        <td>{replicate_data['metrics_table_data']['Within range dynamic range (log10)']:.2f}</td>
+        """
+    metrics_html += """
+                    </tr>
+                    <tr>
+                        <td>Between gene dynamic range (log10)</td>
+        """
+    for replicate_data in replicates_data:
+        metrics_html += f"""
+                        <td>{replicate_data['metrics_table_data']['Between gene dynamic range (log10)']:.2f}</td>
+        """
+    metrics_html += """
+                    </tr>
+                    <tr>
+                        <td>Sum abundance range (log10)</td>
+        """
+    for replicate_data in replicates_data:
+        metrics_html += f"""
+                        <td>{replicate_data['metrics_table_data']['Sum abundance range (log10)']:.2f}</td>
+        """
+    metrics_html += """
+                    </tr>
+                    <tr>
+                        <td>Proportion of neg_control probes</td>
         """
     metrics_html += """
                     </tr>
@@ -1301,8 +1352,6 @@ def not_working_probe_based_on_quality(probe_quality, sample_id="Sample1"):
     return plot_df
 
 
-
-
 def not_working_probe_based_on_morans_i(morans_table, sample_id="Sample1"):
     """
     Identify probes that are not working based on their Moran's I values.
@@ -1317,6 +1366,12 @@ def not_working_probe_based_on_morans_i(morans_table, sample_id="Sample1"):
     morans_table_neg_probes = morans_table[morans_table.gene.str.contains("control|ctrl|code|Code|assign|Assign|pos|NegPrb|neg|Ctrl|blank|Control|Blank|BLANK")]
     morans_table_true_probes = morans_table[~morans_table.gene.str.contains("control|ctrl|code|Code|assign|Assign|pos|NegPrb|neg|Ctrl|blank|Control|Blank|BLANK")]     
 
+    if len(morans_table_neg_probes) < 5:
+        # If no negative control probes, assign Moran's I value of 0 and probe category "Good" to all probes
+        morans_table["Morans_I"] = 0
+        morans_table["Probe category"] = "Good"
+        morans_table["Sample"] = sample_id
+        return morans_table
     #create a plot_df that is grouped_matrix and a column specifying whether the gene is a neg control or not
     plot_df = morans_table.reset_index(drop=True)
     plot_df["Probe category"] = [1 if gene in morans_table_neg_probes.gene.values else 0 for gene in plot_df.gene.values]
@@ -1326,7 +1381,6 @@ def not_working_probe_based_on_morans_i(morans_table, sample_id="Sample1"):
     std = np.std(neg_probes_morans_i_s)
     plot_df["fdr"] = 1
 
-  
     #iterate through the true probes and see whether they are significantly outside of the distribution of the neg probes
     for gene in morans_table_true_probes.gene.values:
         plot_df_gene_index = plot_df[plot_df["gene"]==gene].index[0]
@@ -1719,24 +1773,34 @@ def get_morans_i(gene_name, matrix_joined, tissue_positions_list, max_workers=4,
     
     if gene_name == "all" and not squidpy:
         unique_genes = matrix_joined["Gene_ID_y"].unique()
-        #remove those unique genes which have less than total 100 counts
-        #lowly_expressed_genes = matrix_joined.groupby("Gene_ID_y")["Counts"].sum()
-        #lowly_expressed_genes = lowly_expressed_genes[lowly_expressed_genes<100].index.values
-        unique_genes = [gene for gene in unique_genes] #if gene not in lowly_expressed_genes]
+        unique_genes_series = pd.Series(unique_genes)
+        neg_control_probes = unique_genes_series[unique_genes_series.str.lower().str.contains("control|ctrl|code|assign|pos|negprb|neg|blank")]
+        if len(neg_control_probes) < 5:
+            print("Not enough negative control probes found, skipping Moran's I calculation")
+            # If no negative control probes, assign Moran's I value of 0 and probe category "Good" to all probes
+            res_df = pd.DataFrame({"gene": unique_genes, "Morans_I": 0})
+            return res_df
+
+
         #Commencing Moran's I calculation with max_workers workers
         print(f"Calculating Moran's I for {len(unique_genes)} genes, using the following number of workers: {max_workers}")
         with ProcessPoolExecutor(max_workers=max_workers) as executor:
             results = list(tqdm(executor.map(process_gene, unique_genes, [matrix_joined]*len(unique_genes), [tissue_positions_list]*len(unique_genes)), total=len(unique_genes), desc="Processing genes"))
         
         res_df = pd.DataFrame(results)
-        print(res_df)
-        #append the lowly expressed genes to the end of the dataframe with a morans i of 0
-        #res_df = pd.concat([res_df,pd.DataFrame({"gene":lowly_expressed_genes,"Morans_I":0})],axis=0)
-        print(res_df.head(5))
-        print(res_df.shape)
         return res_df
     
     elif gene_name == "all" and squidpy:
+        unique_genes = matrix_joined["Gene_ID_y"].unique()
+        unique_genes_series = pd.Series(unique_genes)
+        neg_control_probes = unique_genes_series[unique_genes_series.str.lower().str.contains("control|ctrl|code|assign|pos|negprb|neg|blank")]
+        if len(neg_control_probes) < 5:
+            print("Not enough negative control probes found, skipping Moran's I calculation")
+            # If no negative control probes, assign Moran's I value of 0 and probe category "Good" to all probes
+            res_df = pd.DataFrame({"gene": unique_genes, "Morans_I": 0})
+            return res_df
+
+
         print("folder", folder)
         adata = sq.read.visium(folder,library_id="library")
         adata.var_names_make_unique()
@@ -1919,6 +1983,9 @@ def plot_morans_i_correlation_heatmap(replicates_data, save_plot=False,output_fo
             else:
                 corr_matrix.iloc[i, j] = 0.0
                 corr_matrix.iloc[j, i] = 0.0
+    
+    #values of nan or inf to be made 0
+    corr_matrix = corr_matrix.replace([np.inf, -np.inf], np.nan).fillna(0)
 
     #make diagonal 1
     np.fill_diagonal(corr_matrix.values, 1)
