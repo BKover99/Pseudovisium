@@ -219,22 +219,22 @@ def generate_qc_report(folders, output_folder=os.getcwd(), gene_names=["RYR3", "
 
         # Within gene dynamic range
         gene_range = filtered_matrix.groupby("Gene_ID_y")["Counts"].agg(['min', 'max'])
-        gene_range["range"] = gene_range["max"] - gene_range["min"]
+        gene_range["range"] = np.log10(gene_range["max"]) - np.log10(gene_range["min"])
         max_range_gene = gene_range.loc[gene_range["range"].idxmax()]
-        within_gene_dynamic_range = np.log10(max_range_gene["range"])
+        within_gene_dynamic_range = max_range_gene["range"]
 
         # Between gene dynamic range
         hexagon_gene_range = filtered_matrix.groupby(["Barcode_ID", "Gene_ID_y"])["Counts"].sum().reset_index()
         hexagon_gene_range = hexagon_gene_range.groupby("Barcode_ID")["Counts"].agg(['min', 'max']).reset_index()
-        hexagon_gene_range["range"] = hexagon_gene_range["max"] - hexagon_gene_range["min"]
+        hexagon_gene_range["range"] = np.log10(hexagon_gene_range["max"]) - np.log10(hexagon_gene_range["min"])
         median_range = np.median(hexagon_gene_range["range"])
-        between_gene_dynamic_range = np.log10(median_range)
+        between_gene_dynamic_range = median_range
 
         # Sum abundance range
         gene_sums = filtered_matrix.groupby("Gene_ID_y")["Counts"].sum()
         min_sum = gene_sums.min()
         max_sum = gene_sums.max()
-        sum_abundance_range = np.log10(max_sum - min_sum)
+        sum_abundance_range = np.log10(max_sum) - np.log10(min_sum)
 
 
 
@@ -252,7 +252,7 @@ def generate_qc_report(folders, output_folder=os.getcwd(), gene_names=["RYR3", "
                 "Number of genes in at least 5% of hexagons": int(pct5_plex),
                 "Median counts per hexagon": int(median_counts),
                 "Median features per hexagon": int(median_features),
-                "Within range dynamic range (log10)": within_gene_dynamic_range,
+                "Within gene dynamic range (log10)": within_gene_dynamic_range,
                 "Between gene dynamic range (log10)": between_gene_dynamic_range,
                 "Sum abundance range (log10)": sum_abundance_range,
 
@@ -461,11 +461,11 @@ def generate_dashboard_html(replicates_data, gene_names, include_morans_i,qualit
     metrics_html += """
                     </tr>
                     <tr>
-                        <td>Within range dynamic range (log10)</td>
+                        <td>Within gene dynamic range (log10)</td>
         """
     for replicate_data in replicates_data:
         metrics_html += f"""
-                        <td>{replicate_data['metrics_table_data']['Within range dynamic range (log10)']:.2f}</td>
+                        <td>{replicate_data['metrics_table_data']['Within gene dynamic range (log10)']:.2f}</td>
         """
     metrics_html += """
                     </tr>
@@ -1194,7 +1194,7 @@ def not_working_probe_based_on_sum(matrix_joined,sample_id="Sample1"):
     plot_df["Probe category"] = [1 if gene in grouped_matrix_neg_probes.index.values else 0 for gene in plot_df.index.values]
     plot_df["gene"] = plot_df.index.values
     plot_df["log_counts"] = np.log10(plot_df["Counts"])
-    plot_df["p"] = 0
+    plot_df["p"] = 1
     plot_df["fdr"] = 1
     neg_probes_count = plot_df[plot_df["Probe category"]==1]["log_counts"]
     if len(neg_probes_count) == 0:
@@ -1218,7 +1218,7 @@ def not_working_probe_based_on_sum(matrix_joined,sample_id="Sample1"):
         if gene not in grouped_matrix_neg_probes.index.values:
             plot_df.loc[plot_df["gene"]==gene, "Probe category"] = 2
         
-    plot_df["Probe category"] = ["Neg_control" if x==1 else "Bad" if x==0 else "Good" for x in plot_df["Probe category"]]
+    plot_df["Probe category"] = ["Neg_control" if x==1 else "Good" if x==2 else "Bad" for x in plot_df["Probe category"]]
     plot_df["Sample"] = sample_id
     #order based on probe category
     plot_df = plot_df.sort_values("Probe category")
@@ -1259,50 +1259,58 @@ def probe_stripplot(plot_df, col_to_plot="log_counts", sample_id="Sample 1", leg
         points["cat"].append(cat)
         points["index"].append(index)
 
+    colors = {"Good": "green", "Neg_control": "yellow", "Bad": "red"}
+
     # Plot the points for each category
-    for cat in [ "Good", "Neg_control", "Bad"]:
+    for cat in ["Good", "Neg_control", "Bad"]:
         mask = [c == cat for c in points["cat"]]
         ax.scatter([x for x, m in zip(points["x"], mask) if m],
                    [y for y, m in zip(points["y"], mask) if m],
-                   alpha=0.8, label=cat)
+                   color=colors[cat],  alpha=0.5, label=cat)
 
     # Draw a straight line at the mean of the neg controls
     neg_control_mean = np.mean(plot_df[plot_df["Probe category"] == "Neg_control"][col_to_plot])
-    ax.axhline(neg_control_mean, color="red", linestyle="--")
+    ax.axhline(neg_control_mean, color="yellow", linestyle="--",alpha=0.5)
 
     # Add labels for the top 10 lowest score Bad probes
     bad_probes = plot_df[plot_df["Probe category"] == "Bad"].sort_values(col_to_plot).head(10)
     colname = "gene" if "gene" in plot_df.columns else "Probe_ID"
+    
+    
+    # Remove x-axis ticks and label
+    ax.set_xticks([])
+    ax.set_xlabel("")
+    #add y label based on col_to_plot
+    ax.set_ylabel(col_to_plot, fontsize=10)
+    ax.tick_params(axis='y', labelsize=10)
+
+    # Add a legend if requested
+    if legend:
+        ax.legend(fontsize='small', loc='upper left', bbox_to_anchor=(1, 1))
+
+    #save the plot as a png and svg
+    plt.savefig(f"{output_folder}/{sample_id}_{col_to_plot}_probe_stripplot_without_labels.png", dpi=400)
+    plt.savefig(f"{output_folder}/{sample_id}_{col_to_plot}_probe_stripplot_without_labels.svg", dpi=400)
 
     texts = []
     for index, row in bad_probes.iterrows():
         x = points["x"][points["index"].index(index)]
         y = points["y"][points["index"].index(index)]
         txt = row[colname]
-        texts.append(ax.text(x, y, txt, fontsize=8, ha='left', va='center'))
+        #make it bold text
+        texts.append(ax.text(x, y, txt, fontsize=8, ha='left', va='center',weight='bold'))
 
-    adjust_text(texts, arrowprops=dict(arrowstyle="-", color='black', lw=0.5))
+    adjust_text(texts, arrowprops=dict(arrowstyle="-", color='black', lw=0.6))
 
-    # Remove x-axis ticks and label
-    ax.set_xticks([])
-    ax.set_xlabel("")
-    #add y label based on col_to_plot
-    ax.set_ylabel(col_to_plot)
-
-    # Add a legend if requested
-    if legend:
-        ax.legend(fontsize='small', loc='upper left', bbox_to_anchor=(1, 1))
-
-
-        # Convert the plot to HTML
+    # Convert the plot to HTML
     img_buffer = BytesIO()
     fig.savefig(img_buffer, format='png', bbox_inches='tight')
     img_str = base64.b64encode(img_buffer.getvalue()).decode()
     html_fig = f'<img src="data:image/png;base64,{img_str}"/>'
     if save_plot:
         #save as png and svg at 400 dpi to output_folder
-        plt.savefig(f"{output_folder}/{sample_id}_probe_stripplot.png", dpi=400)
-        plt.savefig(f"{output_folder}/{sample_id}_probe_stripplot.svg", dpi=400)
+        plt.savefig(f"{output_folder}/{sample_id}_{col_to_plot}_probe_stripplot.png", dpi=400)
+        plt.savefig(f"{output_folder}/{sample_id}_{col_to_plot}_probe_stripplot.svg", dpi=400)
     plt.close(fig)
         
     return html_fig
@@ -1328,6 +1336,7 @@ def not_working_probe_based_on_quality(probe_quality, sample_id="Sample1"):
     neg_probes_quality = plot_df[plot_df["Probe category"]==1]["Quality"]
     mean = np.mean(neg_probes_quality)
     std = np.std(neg_probes_quality)
+    plot_df["p"] = 1
     plot_df["fdr"] = 1
 
 
@@ -1342,7 +1351,7 @@ def not_working_probe_based_on_quality(probe_quality, sample_id="Sample1"):
 
     plot_df["fdr"] = multipletests(plot_df["p"], method="fdr_bh")[1]
     #where fdr is less than 0.05, set the probe category to bad
-    for gene in plot_df[plot_df["fdr"]>0.05].index.values:
+    for gene in plot_df[plot_df["fdr"]>0.05].Probe_ID.values:
         if gene not in probe_quality_neg_probes.Probe_ID.values:
             plot_df.loc[plot_df["gene"]==gene, "Probe category"] = 0
         
@@ -1372,6 +1381,8 @@ def not_working_probe_based_on_morans_i(morans_table, sample_id="Sample1"):
         morans_table["Probe category"] = "Good"
         morans_table["Sample"] = sample_id
         return morans_table
+
+
     #create a plot_df that is grouped_matrix and a column specifying whether the gene is a neg control or not
     plot_df = morans_table.reset_index(drop=True)
     plot_df["Probe category"] = [1 if gene in morans_table_neg_probes.gene.values else 0 for gene in plot_df.gene.values]
@@ -1379,6 +1390,7 @@ def not_working_probe_based_on_morans_i(morans_table, sample_id="Sample1"):
     neg_probes_morans_i_s = plot_df[plot_df["Probe category"]==1]["Morans_I"]
     mean = np.mean(neg_probes_morans_i_s)
     std = np.std(neg_probes_morans_i_s)
+    plot_df["p"] = 1
     plot_df["fdr"] = 1
 
     #iterate through the true probes and see whether they are significantly outside of the distribution of the neg probes
@@ -1390,9 +1402,8 @@ def not_working_probe_based_on_morans_i(morans_table, sample_id="Sample1"):
         plot_df.loc[plot_df["gene"]==gene, "p"] = p_val
     plot_df["fdr"] = multipletests(plot_df["p"], method="fdr_bh")[1]
     #where fdr is less than 0.05, set the probe category to bad
-    for gene in plot_df[plot_df["fdr"]<0.05].index.values:
-        if gene not in morans_table_neg_probes.gene.values:
-            plot_df.loc[plot_df["gene"]==gene, "Probe category"] = 2
+    for gene in plot_df[plot_df["fdr"]<0.05].gene.values:
+        plot_df.loc[plot_df["gene"]==gene, "Probe category"] = 2
 
     
     #save the name of those genes with 0
@@ -1520,7 +1531,7 @@ def hexagon_plot_to_html(hexagon_df, hexagon_size, image_pixels_per_um, gene_nam
     
     ax.set_xticks([])
     ax.set_yticks([])
-    ax.set_title(f"{gene_name} - {dataset_name}", loc='center', fontsize=8)
+    ax.set_title(f"{gene_name} - {dataset_name}", loc='center', fontsize=10)
 
     # Add color bar
     sm = plt.cm.ScalarMappable(cmap="viridis", norm=plt.Normalize(vmin=hexagon_df["counts"].min(), vmax=hexagon_df["counts"].max()))
@@ -1528,7 +1539,7 @@ def hexagon_plot_to_html(hexagon_df, hexagon_size, image_pixels_per_um, gene_nam
     cbar = plt.colorbar(sm, ax=ax, fraction=0.046, pad=0.04)
     cbar.ax.tick_params(labelsize=6)
     if morans_i:
-        ax.set_title(f"{gene_name} - Morans I: {morans_i:.2f}", fontsize=8)
+        ax.set_title(f"{gene_name} - Morans I: {morans_i:.2f}", fontsize=10)
 
     # Convert plot to base64 encoded image string
     img_buffer = BytesIO()
@@ -1805,7 +1816,6 @@ def get_morans_i(gene_name, matrix_joined, tissue_positions_list, max_workers=4,
         adata = sq.read.visium(folder,library_id="library")
         adata.var_names_make_unique()
         print("Filtering genes and cells")
-        sc.pp.filter_genes(adata, min_counts=10)
         sc.pp.filter_cells(adata, min_counts=100)
         print("Normalizing and logging data")
         sc.pp.normalize_total(adata)
@@ -1819,6 +1829,8 @@ def get_morans_i(gene_name, matrix_joined, tissue_positions_list, max_workers=4,
         df["gene"] = df.index
         #rename I to Morans_I
         df = df.rename(columns={"I":"Morans_I"})
+        #keep these two only
+        df = df[["gene","Morans_I"]]
         return df
     
     elif gene_name == "features":
