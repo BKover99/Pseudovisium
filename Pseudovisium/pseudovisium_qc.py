@@ -31,7 +31,7 @@ from statsmodels.stats.multitest import multipletests
 warnings.filterwarnings("ignore",category=FutureWarning)
 
 
-def generate_qc_report(folders, output_folder=os.getcwd(), gene_names=["RYR3", "AQP4", "THBS1"], include_morans_i=False,max_workers=4,normalisation=False,save_plots=False,squidpy=False):
+def generate_qc_report(folders, output_folder=os.getcwd(), gene_names=["RYR3", "AQP4", "THBS1"], include_morans_i=False,max_workers=4,normalisation=False,save_plots=False,squidpy=False,minimal_plots=False):
     """
     Generate a QC report for Pseudovisium output.
 
@@ -183,14 +183,20 @@ def generate_qc_report(folders, output_folder=os.getcwd(), gene_names=["RYR3", "
         total_counts = np.sum(matrix["Counts"])
         prop_neg_control = neg_control_counts / total_counts
         if cell_info:
-            pv_cell_hex_assigned = pv_cell_hex[(pv_cell_hex["Cell_ID"] != "UNASSIGNED") & (pv_cell_hex["Cell_ID"] != -1) & (pv_cell_hex["Cell_ID"] != 0)]
+            pv_cell_hex_assigned = pv_cell_hex[
+            (pv_cell_hex["Cell_ID"] != "UNASSIGNED") &
+            (pv_cell_hex["Cell_ID"] != -1) &
+            (pv_cell_hex["Cell_ID"] != 0) &
+            (~pv_cell_hex["Cell_ID"].astype(str).str.endswith("_0")) &
+            (~pv_cell_hex["Cell_ID"].astype(str).str.endswith("_-1"))
+        ]
             grouped_pv_cell_hex_assigned = pv_cell_hex_assigned.groupby("Hexagon_ID")["Cell_ID"].count()
             median_cells_per_hex = np.median(grouped_pv_cell_hex_assigned)
 
             counts_per_cell = pv_cell_hex_assigned.groupby("Cell_ID")["Count"].sum()
             median_counts_per_cell = np.median(counts_per_cell)
 
-            pv_cell_hex_unassigned = pv_cell_hex[(pv_cell_hex["Cell_ID"] == "UNASSIGNED") | (pv_cell_hex["Cell_ID"] == -1) | (pv_cell_hex["Cell_ID"] == 0)]
+            pv_cell_hex_unassigned = pv_cell_hex[(pv_cell_hex["Cell_ID"] == "UNASSIGNED") | (pv_cell_hex["Cell_ID"] == -1) | (pv_cell_hex["Cell_ID"] == 0) | (pv_cell_hex["Cell_ID"].astype(str).str.endswith("_0")) | (pv_cell_hex["Cell_ID"].astype(str).str.endswith("_-1"))]
             #merge with grouped_pv_cell_hex_assigned
             grouped_pv_cell_hex_assigned_sum = pv_cell_hex_assigned.groupby("Hexagon_ID")["Count"].sum()
             merged_assigned_unassigned = pd.merge(grouped_pv_cell_hex_assigned_sum,pv_cell_hex_unassigned,left_on="Hexagon_ID",right_on="Hexagon_ID",how="inner")
@@ -372,13 +378,13 @@ def generate_qc_report(folders, output_folder=os.getcwd(), gene_names=["RYR3", "
     sum_stripplot.to_csv(data_output_folder + "/sum_stripplot.csv", index=False)
 
     html_code = generate_dashboard_html(replicates_data=replicates_data, gene_names=gene_names, include_morans_i=include_morans_i,
-    quality_per_hexagon=quality_per_hexagon,quality_per_probe=quality_per_probe,cell_info=cell_info,normalisation=normalisation,save_plots=save_plots,output_folder=data_output_folder + "/plots")
+    quality_per_hexagon=quality_per_hexagon,quality_per_probe=quality_per_probe,cell_info=cell_info,normalisation=normalisation,save_plots=save_plots,output_folder=data_output_folder + "/plots",minimal_plots=minimal_plots)
 
     with open(output, "w", encoding="utf-8") as html_file:
         html_file.write(html_code)
         print("HTML file generated successfully!")
 
-def generate_dashboard_html(replicates_data, gene_names, include_morans_i,quality_per_hexagon,quality_per_probe,cell_info,normalisation=False,save_plots=False,output_folder=os.getcwd()):
+def generate_dashboard_html(replicates_data, gene_names, include_morans_i,quality_per_hexagon,quality_per_probe,cell_info,normalisation=False,save_plots=False,output_folder=os.getcwd(), minimal_plots=False):
     """
     Generate the HTML code for the QC report dashboard.
 
@@ -888,7 +894,7 @@ def generate_dashboard_html(replicates_data, gene_names, include_morans_i,qualit
 
 
     sums_comparison_html = ""
-    if len(replicates_data) > 1:
+    if len(replicates_data) > 1 and not minimal_plots:
         pairs = [(i, j) for i in range(len(replicates_data)) for j in range(i + 1, len(replicates_data))]
         for i, (index1, index2) in enumerate(pairs):
             if i % 3 == 0:
@@ -910,7 +916,7 @@ def generate_dashboard_html(replicates_data, gene_names, include_morans_i,qualit
                 """
 
     abundance_correlation_heatmap_html = ""
-    if len(replicates_data) > 1:
+    if len(replicates_data) > 1 and not minimal_plots:
         abundance_correlation_heatmap_html = plot_abundance_correlation_heatmap(replicates_data, save_plot=save_plots, output_folder=output_folder)
 
 
@@ -925,7 +931,7 @@ def generate_dashboard_html(replicates_data, gene_names, include_morans_i,qualit
             quality_stripplot_html += f"""
             <div class="col">
                 <h3>{replicate_data['dataset_name']}</h3>
-                {probe_stripplot(plot_df, sample_id=replicate_data['dataset_name'],legend=True, col_to_plot="Quality")}
+                {probe_stripplot(plot_df, sample_id=replicate_data['dataset_name'],legend=True, col_to_plot="Quality", save_plot=save_plots, output_folder=output_folder)}
             </div>
             """
             if (i + 1) % 3 == 0 or i == len(replicates_data) - 1:
@@ -938,7 +944,7 @@ def generate_dashboard_html(replicates_data, gene_names, include_morans_i,qualit
     morans_i_stripplot_html = ""
 
     if include_morans_i:
-        if len(replicates_data) > 1:
+        if len(replicates_data) > 1 and not minimal_plots:
             pairs = [(i, j) for i in range(len(replicates_data)) for j in range(i + 1, len(replicates_data))]
             for i, (index1, index2) in enumerate(pairs):
                 if i % 3 == 0:
@@ -1046,19 +1052,19 @@ def generate_dashboard_html(replicates_data, gene_names, include_morans_i,qualit
             <div class="dropdown">
                 <label for="metrics-select">Select Metric:</label>
                 <select id="metrics-select">
-                    <option value="table">Table of Key Metrics</option>
-                    {'<option value="abundance-correlation-heatmap">Abundance Correlation Heatmap</option>' if len(replicates_data) > 1 else ""}
-                    {'<option value="sums-comparison">Abundance Comparison</option>' if len(replicates_data) > 1 else ""}
-                    <option value="sums-i-stripplot">Abundance Stripplot</option>
-                    {'<option value="morans-i-heatmap">Morans I Correlation Heatmap</option>' if include_morans_i and len(replicates_data) > 1 else ""}
-                    {'<option value="morans-i-comparison">Morans I Comparison</option>' if include_morans_i and len(replicates_data) > 1 else ""}
-                    {'<option value="morans-i-stripplot">Morans I Stripplot</option>' if include_morans_i else ""}
-                    <option value="plot">Hexagon Plots for Genes of Interest</option>
-                    <option value="nfeature_hexagon_plots">Number of Features per Hexagon Plots</option>
-                    <option value="total_hexagon_plots">Total Hexagon Plots</option>
-                    {'<option value="cell_density_hexagon_plots">Cell Density Hexagon Plots</option>' if cell_info else ""}
-                    {'<option value="quality_hexagon_plots">Quality Hexagon Plots</option>' if quality_per_hexagon else ""}
-                    {'<option value="probe_quality_stripplot">Probe Quality Stripplot</option>' if quality_per_probe else ""}
+                <option value="table">Table of Key Metrics</option>
+                {'<option value="abundance-correlation-heatmap">Abundance Correlation Heatmap</option>' if len(replicates_data) > 1 and not minimal_plots else ""}
+                {'<option value="sums-comparison">Abundance Comparison</option>' if len(replicates_data) > 1 and not minimal_plots else ""}
+                <option value="sums-i-stripplot">Abundance Stripplot</option>
+                {'<option value="morans-i-heatmap">Morans I Correlation Heatmap</option>' if include_morans_i and len(replicates_data) > 1 and not minimal_plots else ""}
+                {'<option value="morans-i-comparison">Morans I Comparison</option>' if include_morans_i and len(replicates_data) > 1 and not minimal_plots else ""}
+                {'<option value="morans-i-stripplot">Morans I Stripplot</option>' if include_morans_i else ""}
+                <option value="plot">Hexagon Plots for Genes of Interest</option>
+                <option value="nfeature_hexagon_plots">Number of Features per Hexagon Plots</option>
+                <option value="total_hexagon_plots">Total Hexagon Plots</option>
+                {'<option value="cell_density_hexagon_plots">Cell Density Hexagon Plots</option>' if cell_info else ""}
+                {'<option value="quality_hexagon_plots">Quality Hexagon Plots</option>' if quality_per_hexagon else ""}
+                {'<option value="probe_quality_stripplot">Probe Quality Stripplot</option>' if quality_per_probe else ""}
                 </select>
             </div>
             <div id="metric-details-container">
@@ -1332,30 +1338,38 @@ def not_working_probe_based_on_quality(probe_quality, sample_id="Sample1"):
     plot_df = probe_quality.reset_index(drop=True)
     plot_df["Probe category"] = [1 if gene in probe_quality_neg_probes.Probe_ID.values else 0 for gene in plot_df.Probe_ID.values]
 
-
-    neg_probes_quality = plot_df[plot_df["Probe category"]==1]["Quality"]
-    mean = np.mean(neg_probes_quality)
-    std = np.std(neg_probes_quality)
-    plot_df["p"] = 1
-    plot_df["fdr"] = 1
-
+    #version comparing against null distribution. Removed for now, and defaulting to just checking whether under 20
+    #neg_probes_quality = plot_df[plot_df["Probe category"]==1]["Quality"]
+    #mean = np.mean(neg_probes_quality)
+    #std = np.std(neg_probes_quality)
+    #plot_df["fdr"] = 1
+    #plot_df["p"] = 1
+    #plot_df["gene"]=plot_df["Probe_ID"]
 
     #iterate through the true probes and see whether they are significantly outside of the distribution of the neg probes
-    for gene in probe_quality_true_probes.Probe_ID.values:
-        plot_df_gene_index = plot_df[plot_df["Probe_ID"]==gene].index[0]
-        quality = plot_df[plot_df["Probe_ID"]==gene]["Quality"]
+    #for gene in probe_quality_true_probes.Probe_ID.values:
+    #    plot_df_gene_index = plot_df[plot_df["Probe_ID"]==gene].index[0]
+    #    quality = plot_df[plot_df["Probe_ID"]==gene]["Quality"]
         
-        p_val = stats.norm.cdf(quality, loc=mean, scale=std)
-        p_val = 1-p_val
-        plot_df.loc[plot_df["Probe_ID"]==gene, "p"] = p_val
+    #    p_val = stats.norm.cdf(quality, loc=mean, scale=std)
+    #    p_val = 1-p_val
+    #    plot_df.loc[plot_df["Probe_ID"]==gene, "p"] = p_val
 
-    plot_df["fdr"] = multipletests(plot_df["p"], method="fdr_bh")[1]
+    #plot_df["fdr"] = multipletests(plot_df["p"], method="fdr_bh")[1]
     #where fdr is less than 0.05, set the probe category to bad
-    for gene in plot_df[plot_df["fdr"]>0.05].Probe_ID.values:
-        if gene not in probe_quality_neg_probes.Probe_ID.values:
-            plot_df.loc[plot_df["gene"]==gene, "Probe category"] = 0
+    #for gene in plot_df[plot_df["fdr"]>0.05].gene.values:
+    #    if gene not in probe_quality_neg_probes.Probe_ID.values:
+    #        plot_df.loc[plot_df["gene"]==gene, "Probe category"] = 0
         
-    plot_df["Probe category"] = ["Neg_control" if x==1 else "Bad" if x==0 else "Good" for x in plot_df["Probe category"]]
+    plot_df["gene"]=plot_df["Probe_ID"]
+    for gene in probe_quality_true_probes.Probe_ID.values:
+        quality = plot_df[plot_df["Probe_ID"]==gene]["Quality"]
+        value = 2 if quality.values[0] < 20 else 0
+        plot_df.loc[plot_df["Probe_ID"]==gene, "Probe category"] = value
+
+
+
+    plot_df["Probe category"] = ["Neg_control" if x==1 else "Bad" if x==2 else "Good" for x in plot_df["Probe category"]]
     plot_df["Sample"] = sample_id
     plot_df = plot_df.sort_values("Probe category")
     return plot_df
@@ -2034,10 +2048,11 @@ def main():
     parser.add_argument("--save_plots","-sp",action="store_true",help="Save generate plot as publication ready figures.")
     parser.add_argument("--squidpy","-sq",action="store_true",help="Use squidpy to calculate Moran's I")
 
+    parser.add_argument("--minimal_plots", "-mp", action="store_true", help="Generate minimal plots by excluding heatmaps and individual comparison plots")
+
     args = parser.parse_args()
 
-    generate_qc_report(args.folders, args.output_folder, args.gene_names, args.include_morans_i, max_workers=args.mw,normalisation=args.n,save_plots=args.save_plots,squidpy=args.squidpy)  
-
+    generate_qc_report(args.folders, args.output_folder, args.gene_names, args.include_morans_i, max_workers=args.mw, normalisation=args.n, save_plots=args.save_plots, squidpy=args.squidpy, minimal_plots=args.minimal_plots)
 
 if __name__ == "__main__":
     main()

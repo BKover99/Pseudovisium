@@ -1,0 +1,27 @@
+Metadata-Version: 2.1
+Name: Pseudovisium
+Version: 0.0.41
+Summary: Python package for hexagonal binning of high-resolution spatial transcriptomic data
+Author: Bence Kover
+Author-email: <kover.bence@gmail.com>
+Keywords: spatial,transcriptomics,visium,xenium,cosmx
+Classifier: Development Status :: 1 - Planning
+Classifier: Intended Audience :: Science/Research
+Classifier: Programming Language :: Python :: 3
+Classifier: Operating System :: MacOS :: MacOS X
+License-File: LICENSE
+Requires-Dist: numpy
+Requires-Dist: scipy
+Requires-Dist: scanpy
+Requires-Dist: squidpy
+Requires-Dist: matplotlib
+Requires-Dist: opencv-python
+Requires-Dist: h5py
+Requires-Dist: anndata
+Requires-Dist: tifffile
+Requires-Dist: tqdm
+Requires-Dist: pysal
+Requires-Dist: geopandas
+Requires-Dist: seaborn
+Requires-Dist: adjustText
+Requires-Dist: shapely
