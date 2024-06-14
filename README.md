@@ -84,13 +84,11 @@ Pseudovisium is available on PyPI and can be easily installed using pip:
 For more information and the latest version, visit the Pseudovisium PyPI page https://pypi.org/project/Pseudovisium/.
 
 ## Examples
-See the example Google Colab on converting 10X Xenium Mouse pup data to Pseudovisium format:
+[See the example Google Colab on converting 10X Xenium Mouse pup data to Pseudovisium format](https://github.com/BKover99/Pseudovisium/blob/main/Tutorials/pseudovisium_mouse_pup.ipynb)
 
-https://github.com/BKover99/Pseudovisium/blob/main/pseudovisium_mouse_pup.ipynb
+[Converting 10X Visium HD Mouse brain data to Pseudovisium format](https://github.com/BKover99/Pseudovisium/blob/main/Tutorials/Visium_HD_example.ipynb)
 
-Converting 10X Visium HD Mouse brain data to Pseudovisium format:
-
-https://github.com/BKover99/Pseudovisium/blob/main/Visium_HD_example.ipynb
+[Converting Nanostring CosMx Pancreas data to Pseudovisium](https://github.com/BKover99/Pseudovisium/blob/main/Tutorials/CosMx_example.ipynb)
 
 QC-ing 28 replicates of Xenium pulmonary lung dataset:
 
