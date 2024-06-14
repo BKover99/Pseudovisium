@@ -28,9 +28,9 @@ def delete_temporary_files():
     """
     Deletes temporary batch files and directories created by the script.
 
-    This function searches for directories starting with "tmp_hexa" in the system's
-    temporary directory and prompts the user to confirm deletion of these directories
-    and their contents. If the user confirms, the directories are deleted.
+    Searches for directories starting with "tmp_hexa" in the system's temporary directory
+    and prompts the user to confirm deletion of these directories and their contents.
+    If the user confirms, the directories are deleted.
     """
 
     temp_dir = tempfile.gettempdir()
@@ -258,12 +258,12 @@ def process_batch(
 
     # read in file with pandas
     df_batch = pd.read_csv(batch_file)
-    
-    #adjusting coordinates
+
+    # adjusting coordinates
     df_batch[x_colname] = (df_batch[x_colname]) * coord_to_um_conversion
     df_batch[y_colname] = (df_batch[y_colname]) * coord_to_um_conversion
-    
-    #smoothing, generally only for Visium HD or Curio
+
+    # smoothing, generally only for Visium HD or Curio
     if smoothing != False:
         for i, j in zip(
             [smoothing, smoothing, -smoothing, -smoothing],
@@ -302,7 +302,6 @@ def process_batch(
 
     df_batch["counts"] = counts
 
-
     if quality_per_hexagon == True:
         # create hexagon_quality from df_batch
         hexagon_quality = df_batch.groupby("hexagons")[quality_colname].agg(
@@ -313,9 +312,9 @@ def process_batch(
         if isinstance(hexagon_quality, pd.DataFrame):
             hexagon_quality = hexagon_quality.to_dict(orient="index")
         else:
-            print("hexagon_quality is not a DataFrame. Skipping conversion to dictionary.")
-            
-        
+            print(
+                "hexagon_quality is not a DataFrame. Skipping conversion to dictionary."
+            )
 
     if quality_per_probe == True:
         # create probe_quality from df_batch
@@ -325,15 +324,14 @@ def process_batch(
         if isinstance(probe_quality, pd.DataFrame):
             probe_quality = probe_quality.to_dict(orient="index")
         else:
-            print("probe_quality is not a DataFrame. Skipping conversion to dictionary.")
+            print(
+                "probe_quality is not a DataFrame. Skipping conversion to dictionary."
+            )
             print(f"Type of probe_quality: {type(probe_quality)}")
             print(probe_quality)
-        
-        
 
     if quality_filter:
         df_batch = df_batch[df_batch[quality_colname] > 20]
-
 
     hexagon_counts = (
         df_batch[["hexagons", feature_colname, "counts"]]
@@ -345,11 +343,12 @@ def process_batch(
     returning_items = [hexagon_counts]
 
     if cell_id_colname != "None":
-        hexagon_cell_counts= (
-        df_batch[["hexagons", cell_id_colname, "counts"]]
-        .groupby(["hexagons", cell_id_colname])
-        .aggregate({"counts": "sum"})
-        .reset_index())
+        hexagon_cell_counts = (
+            df_batch[["hexagons", cell_id_colname, "counts"]]
+            .groupby(["hexagons", cell_id_colname])
+            .aggregate({"counts": "sum"})
+            .reset_index()
+        )
 
         returning_items.append(hexagon_cell_counts)
 
@@ -357,7 +356,7 @@ def process_batch(
         returning_items.append(hexagon_quality)
     if quality_per_probe == True:
         returning_items.append(probe_quality)
-    
+
     return tuple(returning_items)
 
 
@@ -368,9 +367,6 @@ def write_10X_h5(adata, file):
     Args:
         adata (AnnData): The AnnData object to be written.
         file (str): The file name to be written to. If no extension is provided, '.h5' is appended.
-
-    Returns:
-        None
     """
 
     if ".h5" not in file:
@@ -441,7 +437,8 @@ def process_csv_file(
         y_colname (str, optional): The name of the y-coordinate column. Defaults to "y_location".
         cell_id_colname (str, optional): The name of the cell ID column. Defaults to "None".
         quality_colname (str, optional): The name of the quality score column. Defaults to "qv".
-        max_workers (int, optional): The maximum number of worker processes to use. Defaults to min(2, multiprocessing.cpu_count()).
+        max_workers (int, optional): The maximum number of worker processes to use.
+                                     Defaults to min(2, multiprocessing.cpu_count()).
         quality_filter (bool, optional): Whether to filter rows based on quality score. Defaults to False.
         count_colname (str, optional): The name of the count column. Defaults to "NA".
         smoothing (bool, optional): Whether to apply smoothing to the counts. Defaults to False.
@@ -449,11 +446,13 @@ def process_csv_file(
         quality_per_probe (bool, optional): Whether to calculate quality per probe. Defaults to False.
         h5_x_colname (str, optional): The name of the x-coordinate column in the h5 file. Defaults to "x".
         h5_y_colname (str, optional): The name of the y-coordinate column in the h5 file. Defaults to "y".
-        coord_to_um_conversion (float, optional): The conversion factor from coordinates to micrometers. Defaults to 1.
+        coord_to_um_conversion (float, optional): The conversion factor from coordinates to micrometers.
+                                                  Defaults to 1.
         spot_diameter (float, optional): The diameter of the spot. Defaults to None.
 
     Returns:
-        tuple: A tuple containing the hexagon counts, hexagon cell counts, hexagon quality, and probe quality dictionaries.
+        tuple: A tuple containing the hexagon counts, unique hexagons, unique features,
+               hexagon cell counts, hexagon quality, and probe quality dictionaries.
     """
 
     print(f"Quality filter is set to {quality_filter}")
@@ -464,7 +463,6 @@ def process_csv_file(
         print(
             "Visium-like spots are going to be used rather than hexagonal tesselation!!!"
         )
-
 
     fieldnames = [feature_colname, x_colname, y_colname]
     if cell_id_colname != "None":
@@ -486,7 +484,6 @@ def process_csv_file(
     probe_quality = {}
     hexagon_counts = pd.DataFrame()
     hexagon_cell_counts = pd.DataFrame()
-
 
     batch_files = [os.path.join(tmp_dir, f"batch_{i}.csv") for i in range(num_batches)]
     n_process = min(max_workers, multiprocessing.cpu_count())
@@ -536,13 +533,15 @@ def process_csv_file(
                     batch_hexagon_cell_counts = all_res[1]
 
                     hexagon_cell_counts = pd.concat(
-                    [hexagon_cell_counts, batch_hexagon_cell_counts], axis=0)
+                        [hexagon_cell_counts, batch_hexagon_cell_counts], axis=0
+                    )
 
                     hexagon_cell_counts = (
-                    hexagon_cell_counts[["hexagons", cell_id_colname, "counts"]]
-                    .groupby(["hexagons", cell_id_colname])
-                    .aggregate({"counts": "sum"})
-                    .reset_index())
+                        hexagon_cell_counts[["hexagons", cell_id_colname, "counts"]]
+                        .groupby(["hexagons", cell_id_colname])
+                        .aggregate({"counts": "sum"})
+                        .reset_index()
+                    )
 
                 if quality_per_hexagon == True:
                     if cell_id_colname != "None":
@@ -643,7 +642,7 @@ def create_pseudovisium(
     shift_to_positive=False,
     project_name="project",
     alignment_matrix_file=None,
-    image_pixels_per_um=1 / 0.2125,
+    image_pixels_per_um=1.0,
     hexagon_size=100,
     tissue_hires_scalef=0.2,
     pixel_to_micron=False,
@@ -656,17 +655,25 @@ def create_pseudovisium(
     Args:
         path (str): The path to create the Pseudovisium output directory.
         hexagon_counts (dict): A dictionary of hexagon counts.
+        unique_hexagons (numpy.ndarray): The sorted unique hexagons.
+        unique_features (numpy.ndarray): The sorted unique features.
         hexagon_cell_counts (dict): A dictionary of hexagon cell counts.
         hexagon_quality (dict): A dictionary of hexagon quality scores.
         probe_quality (dict): A dictionary of probe quality scores.
+        cell_id_colname (str): The name of the cell ID column.
         img_file_path (str, optional): The path to the image file. Defaults to None.
+        shift_to_positive (bool, optional): Whether to shift columns, rows, and full-resolution pixel values to positive if any are negative. Defaults to False.
         project_name (str, optional): The name of the project. Defaults to "project".
         alignment_matrix_file (str, optional): The path to the alignment matrix file. Defaults to None.
-        image_pixels_per_um (float, optional): The number of image pixels per micrometer. Defaults to 1/0.2125.
+        image_pixels_per_um (float, optional): The number of image pixels per micrometer.
+                                                Defaults to 1.0.
         hexagon_size (int, optional): The size of the hexagon. Defaults to 100.
-        tissue_hires_scalef (float, optional): The scaling factor for the high-resolution tissue image. Defaults to 0.2.
-        pixel_to_micron (bool, optional): Whether to convert pixel coordinates to micron coordinates. Defaults to False.
-        max_workers (int, optional): The maximum number of worker processes to use. Defaults to min(2, multiprocessing.cpu_count()).
+        tissue_hires_scalef (float, optional): The scaling factor for the high-resolution tissue image.
+                                                Defaults to 0.2.
+        pixel_to_micron (bool, optional): Whether to convert pixel coordinates to micron coordinates.
+                                           Defaults to False.
+        max_workers (int, optional): The maximum number of worker processes to use.
+                                     Defaults to min(2, multiprocessing.cpu_count()).
         spot_diameter (float, optional): The diameter of the spot. Defaults to None.
     """
     spot = True if spot_diameter != None else False
@@ -776,19 +783,20 @@ def create_pseudovisium(
 
     ############################################## ##############################################
 
-    #if hexagon_cell_counts is pandas df
+    # if hexagon_cell_counts is pandas df
     if hexagon_cell_counts.empty:
         print("No cell information provided. Skipping cell information files.")
     else:
         print("Creating pv_cell_hex.csv file in spatial folder.")
-        hexagon_cell_counts = hexagon_cell_counts[[cell_id_colname, "hexagon_id", "counts"]]
-        #add 1 to hexagon_ids
+        hexagon_cell_counts = hexagon_cell_counts[
+            [cell_id_colname, "hexagon_id", "counts"]
+        ]
+        # add 1 to hexagon_ids
         hexagon_cell_counts["hexagon_id"] = hexagon_cell_counts["hexagon_id"] + 1
-        #save csv
+        # save csv
         hexagon_cell_counts.to_csv(
             folderpath + "/spatial/pv_cell_hex.csv", index=False, header=False
         )
-
 
     if hexagon_quality == {}:
         print("No quality information provided. Skipping quality information files.")
@@ -818,8 +826,8 @@ def create_pseudovisium(
         print("No quality information provided. Skipping quality information files.")
     else:
         print("Creating quality_per_probe.csv file in spatial folder.")
-        #map back probe_quality indices to unique_features
-        #iterate through its keys, and rename it 
+        # map back probe_quality indices to unique_features
+        # iterate through its keys, and rename it
         for key in list(probe_quality.keys()):
             probe_quality[unique_features[key]] = probe_quality.pop(key)
 
@@ -982,31 +990,39 @@ def create_pseudovisium(
         # output a blank image
         # Create a white background image with tissue positions
         print("No image file provided. Drawing tissue positions on a white background.")
-        
+
         # Extract pixel coordinates from hexagon_table
-        pixel_coords = np.array([[int(row*tissue_hires_scalef), int(col*tissue_hires_scalef)] for row, col in zip(hexagon_table["pxl_row_in_fullres"], hexagon_table["pxl_col_in_fullres"])])
-        
+        pixel_coords = np.array(
+            [
+                [int(row * tissue_hires_scalef), int(col * tissue_hires_scalef)]
+                for row, col in zip(
+                    hexagon_table["pxl_row_in_fullres"],
+                    hexagon_table["pxl_col_in_fullres"],
+                )
+            ]
+        )
+
         # Find the maximum dimensions of the pixel coordinates
         max_x = np.max(pixel_coords[:, 1])
         max_y = np.max(pixel_coords[:, 0])
-        
+
         # Create a white background image
         image = np.ones((max_y + 100, max_x + 100, 3), dtype=np.uint8) * 255
-        
+
         # Draw purple dots at the tissue positions
         for coord in pixel_coords:
             cv2.circle(image, tuple(coord[::-1]), 5, (255, 0, 255), -1)
-        
+
         # Save the high-resolution image
         cv2.imwrite(folderpath + "/spatial/tissue_hires_image.png", image)
-        
+
         # Resize the image for the low-resolution version
         scale2 = 0.1
         width = int(image.shape[1] * scale2)
         height = int(image.shape[0] * scale2)
         dim = (width, height)
         resized = cv2.resize(image, dim, interpolation=cv2.INTER_AREA)
-        
+
         # Save the low-resolution image
         cv2.imwrite(folderpath + "/spatial/tissue_lowres_image.png", resized)
 
@@ -1023,11 +1039,15 @@ def read_files(folder, technology):
         technology (str): The technology used, either "Visium_HD" or "Curio".
 
     Returns:
-        tuple or AnnData: A tuple containing the scale factors, tissue positions, and filtered feature-barcode matrix (for Visium HD),
-                          or an AnnData object (for Curio).
+        tuple or AnnData: A tuple containing the scale factors, tissue positions, and filtered
+                          feature-barcode matrix (for Visium HD), or an AnnData object (for Curio).
     """
 
-    if (technology == "Visium_HD") or (technology == "VisiumHD") or (technology == "Visium HD"):
+    if (
+        (technology == "Visium_HD")
+        or (technology == "VisiumHD")
+        or (technology == "Visium HD")
+    ):
         scalefactors = json.load(open(folder + "/spatial/scalefactors_json.json"))
         tissue_pos = pd.read_parquet(folder + "/spatial/tissue_positions.parquet")
         fb_matrix = sc.read_10x_h5(folder + "/filtered_feature_bc_matrix.h5")
@@ -1058,7 +1078,11 @@ def anndata_to_df(
         tuple: A tuple containing the converted DataFrame and the image resolution or scale.
     """
 
-    if (technology == "Visium_HD") or (technology == "VisiumHD") or (technology == "Visium HD"):
+    if (
+        (technology == "Visium_HD")
+        or (technology == "VisiumHD")
+        or (technology == "Visium HD")
+    ):
         # get image resolution of the hires image
         image_resolution = (
             scalefactors["microns_per_pixel"] / scalefactors["tissue_hires_scalef"]
@@ -1144,7 +1168,11 @@ def visium_hd_curio_to_transcripts(folder, output, technology, x_col=None, y_col
         float: The image resolution (pixels per micrometer) for Visium HD, or the scale for Curio.
     """
 
-    if (technology == "Visium_HD") or (technology == "VisiumHD") or (technology == "Visium HD"):
+    if (
+        (technology == "Visium_HD")
+        or (technology == "VisiumHD")
+        or (technology == "Visium HD")
+    ):
         scalefactors, tissue_pos, fb_matrix = read_files(folder, technology)
         df, image_resolution = anndata_to_df(
             adata=fb_matrix,
@@ -1201,52 +1229,70 @@ def generate_pv(
 
     Args:
         csv_file (str): The path to the CSV file.
+        hexagon_size (float): The size of the hexagon.
+        output_path (str, optional): The path to save the Pseudovisium output. Defaults to ".".
         img_file_path (str, optional): The path to the image file. Defaults to None.
-        hexagon_size (int, optional): The size of the hexagon. Defaults to 100.
-        output_path (str, optional): The path to save the Pseudovisium output. Defaults to None.
         batch_size (int, optional): The number of rows per batch. Defaults to 1000000.
-        alignment_matrix_file (str, optional): The path to the alignment matrix file. Defaults to None.
-        project_name (str, optional): The name of the project. Defaults to 'project'.
-        image_pixels_per_um (float, optional): The number of image pixels per micrometer. Defaults to 1.
-        tissue_hires_scalef (float, optional): The scaling factor for the high-resolution tissue image. Defaults to 0.2.
         technology (str, optional): The technology used. Defaults to "Xenium".
         feature_colname (str, optional): The name of the feature column. Defaults to "feature_name".
         x_colname (str, optional): The name of the x-coordinate column. Defaults to "x_location".
         y_colname (str, optional): The name of the y-coordinate column. Defaults to "y_location".
         cell_id_colname (str, optional): The name of the cell ID column. Defaults to "None".
         quality_colname (str, optional): The name of the quality score column. Defaults to "qv".
-        pixel_to_micron (bool, optional): Whether to convert pixel coordinates to micron coordinates. Defaults to False.
-        max_workers (int, optional): The maximum number of worker processes to use. Defaults to min(2, multiprocessing.cpu_count()).
+        max_workers (int, optional): The maximum number of worker processes to use.
+                                     Defaults to min(2, multiprocessing.cpu_count()).
         quality_filter (bool, optional): Whether to filter rows based on quality score. Defaults to False.
         count_colname (str, optional): The name of the count column. Defaults to "NA".
-        visium_hd_folder (str, optional): The path to the Visium HD folder. Defaults to None.
         smoothing (float, optional): The smoothing factor. Defaults to False.
         quality_per_hexagon (bool, optional): Whether to calculate quality per hexagon. Defaults to False.
         quality_per_probe (bool, optional): Whether to calculate quality per probe. Defaults to False.
         h5_x_colname (str, optional): The name of the x-coordinate column in the h5 file. Defaults to "x".
         h5_y_colname (str, optional): The name of the y-coordinate column in the h5 file. Defaults to "y".
-        coord_to_um_conversion (float, optional): The conversion factor from coordinates to micrometers. Defaults to 1.
+        coord_to_um_conversion (float, optional): The conversion factor from coordinates to micrometers.
+                                                   Defaults to 1.
+        visium_hd_folder (str, optional): The path to the Visium HD folder. Defaults to None.
+        shift_to_positive (bool, optional): Whether to shift columns, rows, and full-resolution pixel values to positive if any are negative. Defaults to False.
+        project_name (str, optional): The name of the project. Defaults to "project".
+        alignment_matrix_file (str, optional): The path to the alignment matrix file. Defaults to None.
+        image_pixels_per_um (float, optional): The number of image pixels per micrometer. Defaults to 1.0.
+        tissue_hires_scalef (float, optional): The scaling factor for the high-resolution tissue image.
+                                                Defaults to 0.2.
+        pixel_to_micron (bool, optional): Whether to convert pixel coordinates to micron coordinates.
+                                           Defaults to False.
         spot_diameter (float, optional): The diameter of the spot. Defaults to None.
     """
     try:
-        output = subprocess.check_output(['pip', 'freeze']).decode('utf-8').strip().split('\n')
-        version = [x for x in output if 'Pseudovisium' in x]
+        output = (
+            subprocess.check_output(["pip", "freeze"])
+            .decode("utf-8")
+            .strip()
+            .split("\n")
+        )
+        version = [x for x in output if "Pseudovisium" in x]
         date = str(datetime.datetime.now().date())
-        print("You are using version: ",version)
-        print("Date: ",date)
+        print("You are using version: ", version)
+        print("Date: ", date)
     except:
-        output = subprocess.check_output(['pip3', 'freeze']).decode('utf-8').strip().split('\n')
-        version = [x for x in output if 'Pseudovisium' in x]
+        output = (
+            subprocess.check_output(["pip3", "freeze"])
+            .decode("utf-8")
+            .strip()
+            .split("\n")
+        )
+        version = [x for x in output if "Pseudovisium" in x]
         date = str(datetime.datetime.now().date())
-        print("You are using version: ",version)
-        print("Date: ",date)
-    
+        print("You are using version: ", version)
+        print("Date: ", date)
 
     try:
 
         start = time.time()
 
-        if (technology == "Visium_HD") or (technology == "VisiumHD") or (technology == "Visium HD"):
+        if (
+            (technology == "Visium_HD")
+            or (technology == "VisiumHD")
+            or (technology == "Visium HD")
+        ):
             print(
                 "Technology is Visium_HD. Generating transcripts.csv file from Visium HD files."
             )
@@ -1302,7 +1348,11 @@ def generate_pv(
             # Whereas old smi output seems to be 0.18
             # https://nanostring-public-share.s3.us-west-2.amazonaws.com/SMI-Compressed/SMI-ReadMe.html
 
-        elif (technology == "Visium_HD") or (technology == "VisiumHD") or (technology == "Visium HD"):
+        elif (
+            (technology == "Visium_HD")
+            or (technology == "VisiumHD")
+            or (technology == "Visium HD")
+        ):
             print(
                 "Technology is Visium_HD. Going forward with pseudovisium processed colnames."
             )
