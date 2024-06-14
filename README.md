@@ -46,23 +46,36 @@ Pseudovisium's qc command generates a detailed quality control (QC) report for a
 
 | Argument | Shorthand | Description |
 | --- | --- | --- |
-| `folders` | `-f` | List of folders containing Pseudovisium output. |
+| `folders` | `-f` | List of folders containing Pseudovisium/Visium output |
 | `output_folder` | `-o` | Output folder path (default: current working directory). |
 | `gene_names` | `-g` | List of gene names to plot (default: ["RYR3", "AQP4", "THBS1"]). |
 | `include_morans_i` | `-m` | Include Moran's I features tab (default: False). |
 | `max_workers` | `--mw` | Number of workers to use for parallel processing (default: 4). |
 | `normalisation` | `-n` | Normalise the counts by the total counts per cell (default: False). |
 | `save_plots` | `-sp` | Save generated plots as publication ready figures (default: False). |
+| `squidpy` | `-sq` | Use squidpy to calculate Moran's I (default: False). |
+| `minimal_plots` | `-mp` | Generate minimal plots by excluding heatmaps and individual comparison plots (default: False). |
 
 
-### 3. merge:   Data Merging 🧩 - Not finalised
+### 3. merge:   Data Merging 🧩 
 
-With the merge command, you can easily merge multiple Pseudovisium or Visium format files. This feature allows you to combine data from different datasets, merge images together, and generate a merged output directory in the Pseudovisium/Visium format. Pseudovisium makes it effortless to merge data from multiple spatial transcriptomics experiments, enabling comprehensive analysis across datasets.
+With the merge command, you can easily merge multiple Pseudovisium or Visium format files. This feature allows you to combine data from different datasets, merge images together, and generate a merged output directory in the Pseudovisium/Visium format. Pseudovisium_merge makes it effortless to merge data from multiple spatial transcriptomics experiments, enabling comprehensive analysis across datasets.
+
+#### qc arguments:
+
+| Argument | Shorthand | Description |
+| --- | --- | --- |
+| `folders` | `-f` | List of folders containing Pseudovisium/Visium output |
+| `output_path` | `-o` | Output folder path (default: current working directory). |
+| `project_name` | `-p` | Project name for output (default: visium_merged). |
+| `pv_format` | `-pvf` | Indicate if input is in Pseudovisium format (default: False).|
+| `only_common` | `--oc` | Only keep genes present in all datasets (default: False). |
+
 
 
 ## 🎯 Flexibility and Compatibility
 
-Pseudovisium is designed to be flexible and compatible with various spatial transcriptomics technologies. It supports data from different platforms ensuring seamless integration with other analysis tools and workflows. Input files range from transcripts.csv, to .h5 as well as 10X feature-barcode-matrix directories.
+Pseudovisium is designed to be flexible and compatible with various spatial transcriptomics technologies. It supports data from different platforms ensuring seamless integration with other analysis tools and workflows. Input files range from transcripts.csv, transcripts.parquet to .h5, .h5ad as well as 10X feature-barcode-matrix directories.
 Technologies tried include:
 
 #### Vizgen
@@ -90,9 +103,9 @@ For more information and the latest version, visit the Pseudovisium PyPI page ht
 
 [Converting Nanostring CosMx Pancreas data to Pseudovisium](https://github.com/BKover99/Pseudovisium/blob/main/Tutorials/CosMx_example.ipynb)
 
-QC-ing 28 replicates of Xenium pulmonary lung dataset:
+[QC-ing 28 replicates of Xenium pulmonary lung dataset](https://github.com/BKover99/Pseudovisium/blob/main/Pulmonary_lung_QC.ipynb)
 
-https://github.com/BKover99/Pseudovisium/blob/main/Pulmonary_lung_QC.ipynb
+
 
 ## Goals
 
