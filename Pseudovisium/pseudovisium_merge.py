@@ -773,7 +773,7 @@ def main():
         required=True,
     )
     parser.add_argument(
-        "--output_path", "-o", default="/Users/k23030440/", help="Output folder path"
+        "--output_path", "-o", default=os.getcwd(), help="Output folder path"
     )
     parser.add_argument(
         "--project_name", "-p", default="visium_merged", help="Project name for output"
