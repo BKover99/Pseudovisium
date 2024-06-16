@@ -78,12 +78,12 @@ With the merge command, you can easily merge multiple Pseudovisium or Visium for
 Pseudovisium is designed to be flexible and compatible with various spatial transcriptomics technologies. It supports data from different platforms ensuring seamless integration with other analysis tools and workflows. Input files range from transcripts.csv, transcripts.parquet to .h5, .h5ad as well as 10X feature-barcode-matrix directories.
 Technologies tried include:
 
-#### Vizgen
-#### Xenium
-#### CosMx
-#### Curio
-#### seqFISH
-#### VisiumHD
+#### MERSCOPE (Vizgen)
+#### Xenium (10X)
+#### CosMx (Nanostring)
+#### Slide-seq (Curio Seeker)
+#### seqFISH (Spatial Genomics)
+#### VisiumHD (10X)
 
 
 ## 🚀 Get Started with Pseudovisium
