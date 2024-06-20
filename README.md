@@ -97,15 +97,17 @@ Pseudovisium is available on PyPI and can be easily installed using pip:
 For more information and the latest version, visit the Pseudovisium PyPI page https://pypi.org/project/Pseudovisium/.
 
 ## Examples
-[See the example Google Colab on converting 10X Xenium Mouse pup data to Pseudovisium format](https://github.com/BKover99/Pseudovisium/blob/main/Tutorials/pseudovisium_mouse_pup.ipynb)
+[See the example Google Colab on converting 10X Xenium Mouse pup data to Pseudovisium format](https://github.com/BKover99/Pseudovisium/blob/main/Tutorials/Xenium_Tutorial.ipynb)
 
-[Converting 10X Visium HD Mouse brain data to Pseudovisium format](https://github.com/BKover99/Pseudovisium/blob/main/Tutorials/Visium_HD_example.ipynb)
+[Converting 10X Visium HD Mouse brain data to Pseudovisium format](https://github.com/BKover99/Pseudovisium/blob/main/Tutorials/Visium_HD_Tutorial.ipynb)
 
-[Converting Nanostring CosMx Pancreas data to Pseudovisium](https://github.com/BKover99/Pseudovisium/blob/main/Tutorials/CosMx_example.ipynb)
+[Converting Nanostring CosMx Pancreas data to Pseudovisium](https://github.com/BKover99/Pseudovisium/blob/main/Tutorials/CosMx_Tutorial.ipynb)
 
-[QC-ing 28 replicates of Xenium pulmonary lung dataset](https://github.com/BKover99/Pseudovisium/blob/main/Pulmonary_lung_QC.ipynb)
+[Converting Slide-seq brain data to Pseudovisium](https://github.com/BKover99/Pseudovisium/blob/main/Tutorials/Slideseq_Tutorial.ipynb)
 
+[Reproducing all the analysis from the Pseudovisium pre-print](https://github.com/BKover99/Pseudovisium/tree/main/Paper%20figures)
 
+[Performing spatial GSEA with spatialAUC](https://github.com/BKover99/spatialAUC)
 
 ## Goals
 
