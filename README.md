@@ -92,7 +92,9 @@ To start using Pseudovisium, simply install the package and explore the document
 
 Pseudovisium is available on PyPI and can be easily installed using pip:
 
-###### pip install Pseudovisium
+```python
+pip install Pseudovisium
+```
 
 For more information and the latest version, visit the Pseudovisium PyPI page https://pypi.org/project/Pseudovisium/.
 
