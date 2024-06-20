@@ -667,7 +667,7 @@ def create_pseudovisium(
         alignment_matrix_file (str, optional): The path to the alignment matrix file. Defaults to None.
         image_pixels_per_um (float, optional): The number of image pixels per micrometer.
                                                 Defaults to 1.0.
-        hexagon_size (int, optional): The size of the hexagon. Defaults to 100.
+        hexagon_size (int, optional): The size of the hexagon. Defaults to 50.
         tissue_hires_scalef (float, optional): The scaling factor for the high-resolution tissue image.
                                                 Defaults to 0.2.
         pixel_to_micron (bool, optional): Whether to convert pixel coordinates to micron coordinates.
@@ -1490,7 +1490,7 @@ def main():
         "--output_path", "-o", type=str, help="Output path", default="."
     )
     parser.add_argument(
-        "--hexagon_size", "-hs", type=float, help="Hexagon size", default=100.0
+        "--hexagon_size", "-hs", type=float, help="Hexagon size", default=50.0
     )
     parser.add_argument(
         "--img_file_path", "-i", type=str, help="Image file path", default=None
