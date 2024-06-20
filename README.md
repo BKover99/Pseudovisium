@@ -120,6 +120,10 @@ For more information and the latest version, visit the Pseudovisium PyPI page ht
 - [ ] Posting pre-print to Biorxiv
 - [ ] Publication of peer-reviewed research article
 
+## Citation
+To cite Pseudovisium, cite the Pseudovisium pre-print.
+###### To be added.
+
 ### Author
 Bence Kover
 https://twitter.com/kover_bence 
