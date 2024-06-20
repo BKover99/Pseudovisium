@@ -112,9 +112,9 @@ For more information and the latest version, visit the Pseudovisium PyPI page ht
 ## Goals
 
 - [x] Releasing the repo with minimal working capabilities - Apr 20, 2024
-- [ ] Adding supporting Colab notebooks
-- [ ] Releasing all data used in this work on OneDrive
-- [ ] Tidying up all code
+- [x] Adding supporting Colab notebooks - Jun 20, 2024
+- [x] Releasing all data used in this work on OneDrive - Jun 20, 2024
+- [x] Tidying up all code - Jun 20, 2024
 - [ ] Posting pre-print to Biorxiv
 - [ ] Publication of peer-reviewed research article
 
