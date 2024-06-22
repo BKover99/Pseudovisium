@@ -15,6 +15,7 @@ import argparse
 import tifffile
 import multiprocessing
 import time
+import pyarrow.parquet as pq
 import scanpy as sc
 import scipy.io
 import h5py
@@ -32,7 +33,6 @@ def delete_temporary_files():
     and prompts the user to confirm deletion of these directories and their contents.
     If the user confirms, the directories are deleted.
     """
-
     temp_dir = tempfile.gettempdir()
     print(f"Searching for temporary batch files in: {temp_dir}")
 
@@ -62,7 +62,9 @@ def delete_temporary_files():
     else:
         print("No remaining temporary batch files found.")
 
+from numba import jit
 
+@jit(nopython=True)
 def closest_hex(x, y, hexagon_size, spot_diameter=None):
     """
     Calculates the closest hexagon centroid to the given (x, y) coordinates.
@@ -75,81 +77,54 @@ def closest_hex(x, y, hexagon_size, spot_diameter=None):
 
     Returns:
         tuple: The closest hexagon centroid coordinates (x, y) rounded to the nearest integer.
-               Returns -1 if the spot diameter is provided and the distance to the closest
+               Returns (-1, -1) if the spot diameter is provided and the distance to the closest
                hexagon centroid is greater than half the spot diameter.
     """
-    spot = True if spot_diameter != None else False
+    spot = spot_diameter is not None
 
     x_ = x // (hexagon_size * 2)
     y_ = y // (hexagon_size * 1.732050807)
 
     if y_ % 2 == 1:
-
         # lower_left
         option_1_hexagon = (x_ * 2 * hexagon_size, y_ * 1.732050807 * hexagon_size)
 
         # lower right
-        option_2_hexagon = (
-            (x_ + 1) * 2 * hexagon_size,
-            y_ * 1.732050807 * hexagon_size,
-        )
+        option_2_hexagon = ((x_ + 1) * 2 * hexagon_size, y_ * 1.732050807 * hexagon_size)
 
         # upper middle
-        option_3_hexagon = (
-            (x_ + 0.5) * 2 * hexagon_size,
-            (y_ + 1) * 1.732050807 * hexagon_size,
-        )
-
-        # calc distance from each option and return the closest
-        distance_1 = math.sqrt(
-            (x - option_1_hexagon[0]) ** 2 + (y - option_1_hexagon[1]) ** 2
-        )
-        distance_2 = math.sqrt(
-            (x - option_2_hexagon[0]) ** 2 + (y - option_2_hexagon[1]) ** 2
-        )
-        distance_3 = math.sqrt(
-            (x - option_3_hexagon[0]) ** 2 + (y - option_3_hexagon[1]) ** 2
-        )
-        closest = [option_1_hexagon, option_2_hexagon, option_3_hexagon][
-            np.argmin([distance_1, distance_2, distance_3])
-        ]
+        option_3_hexagon = ((x_ + 0.5) * 2 * hexagon_size, (y_ + 1) * 1.732050807 * hexagon_size)
 
     else:
         # lower middle
-        option_1_hexagon = (
-            (x_ + 0.5) * 2 * hexagon_size,
-            y_ * (1.732050807 * hexagon_size),
-        )
+        option_1_hexagon = ((x_ + 0.5) * 2 * hexagon_size, y_ * (1.732050807 * hexagon_size))
 
         # upper left
-        option_2_hexagon = (
-            x_ * 2 * hexagon_size,
-            (y_ + 1) * 1.732050807 * hexagon_size,
-        )
+        option_2_hexagon = (x_ * 2 * hexagon_size, (y_ + 1) * 1.732050807 * hexagon_size)
 
         # upper right
-        option_3_hexagon = (
-            (x_ + 1) * 2 * hexagon_size,
-            (y_ + 1) * 1.732050807 * hexagon_size,
-        )
+        option_3_hexagon = ((x_ + 1) * 2 * hexagon_size, (y_ + 1) * 1.732050807 * hexagon_size)
 
-        # calc distance from each option and return the closest
-        distance_1 = math.sqrt(
-            (x - option_1_hexagon[0]) ** 2 + (y - option_1_hexagon[1]) ** 2
-        )
-        distance_2 = math.sqrt(
-            (x - option_2_hexagon[0]) ** 2 + (y - option_2_hexagon[1]) ** 2
-        )
-        distance_3 = math.sqrt(
-            (x - option_3_hexagon[0]) ** 2 + (y - option_3_hexagon[1]) ** 2
-        )
-        closest = [option_1_hexagon, option_2_hexagon, option_3_hexagon][
-            np.argmin([distance_1, distance_2, distance_3])
-        ]
+    # Calculate distances
+    distance_1 = np.sqrt((x - option_1_hexagon[0]) ** 2 + (y - option_1_hexagon[1]) ** 2)
+    distance_2 = np.sqrt((x - option_2_hexagon[0]) ** 2 + (y - option_2_hexagon[1]) ** 2)
+    distance_3 = np.sqrt((x - option_3_hexagon[0]) ** 2 + (y - option_3_hexagon[1]) ** 2)
+
+    # Find the minimum distance
+    min_distance = min(distance_1, distance_2, distance_3)
+
+    # Select the closest hexagon
+    if min_distance == distance_1:
+        closest = option_1_hexagon
+    elif min_distance == distance_2:
+        closest = option_2_hexagon
+    else:
+        closest = option_3_hexagon
 
     closest = (round(closest[0], 0), round(closest[1], 1))
+    
     if spot:
-        if math.sqrt((x - closest[0]) ** 2 + (y - closest[1]) ** 2) < spot_diameter / 2:
+        if np.sqrt((x - closest[0]) ** 2 + (y - closest[1]) ** 2) < spot_diameter / 2:
             return closest
         else:
             return -1
@@ -157,55 +132,66 @@ def closest_hex(x, y, hexagon_size, spot_diameter=None):
         return closest
 
 
-def preprocess_csv(csv_file, batch_size, fieldnames, feature_colname):
+def preprocess_csv(input_file, batch_size, fieldnames, feature_colname):
     """
-    Preprocesses a CSV file by splitting it into smaller batches.
+    Preprocesses a CSV or Parquet file by splitting it into smaller batches and saving them as Parquet files.
 
     Args:
-        csv_file (str): The path to the CSV file.
+        input_file (str): The path to the input file (CSV or Parquet).
         batch_size (int): The number of rows per batch.
-        fieldnames (list): The list of field names to include in the batch CSV files.
+        fieldnames (list): The list of field names to include in the batch Parquet files.
         feature_colname (str): The name of the column containing feature names.
 
     Returns:
-        tuple: A tuple containing the temporary directory path, the total number of batches created,
-               and the sorted unique features.
+        tuple: A tuple containing:
+            - tmp_dir (str): The path to the temporary directory where batch files are stored.
+            - batch_num (int): The total number of batches created.
+            - unique_features (numpy.ndarray): The sorted unique features.
     """
     unique_features = set()
     tmp_dir = tempfile.mkdtemp(prefix="tmp_hexa")
     print(f"Created temporary directory {tmp_dir}")
 
-    # Open the CSV file based on its format (gzipped or regular)
-    if csv_file.endswith(".gz"):
-        file_open_fn = gzip.open
-        file_open_mode = "rt"
-    else:
-        file_open_fn = open
-        file_open_mode = "r"
+    is_parquet = input_file.endswith('.parquet')
 
-    with file_open_fn(csv_file, file_open_mode) as file:
-        print("Now creating batches")
-        reader = csv.DictReader(file)
+    if is_parquet:
+        # Process Parquet file
+        parquet_file = pq.ParquetFile(input_file)
         batch_num = 0
-
-        while True:
-            batch = list(itertools.islice(reader, batch_size))
-            if not batch:
-                break  # Exit the loop if batch is empty
-
-            batch_file = os.path.join(tmp_dir, f"batch_{batch_num}.csv")
-            with open(batch_file, "w", newline="") as batch_csv:
-                writer = csv.writer(batch_csv)
-                writer.writerow(
-                    fieldnames
-                )  # Write header using the provided fieldnames
-                writer.writerows(
-                    [[row[field] for field in fieldnames] for row in batch]
-                )  # Write rows
-
-            unique_features.update(row[feature_colname] for row in batch)
+        for batch in parquet_file.iter_batches(batch_size=batch_size):
+            df = batch.to_pandas()[fieldnames]
+            batch_file = os.path.join(tmp_dir, f"batch_{batch_num}.parquet")
+            df.to_parquet(batch_file, index=False)
+            
+            unique_features.update(df[feature_colname])
             batch_num += 1
             print(f"Created batch {batch_num}")
+    else:
+        # Process CSV file
+        if input_file.endswith(".gz"):
+            file_open_fn = gzip.open
+            file_open_mode = "rt"
+        else:
+            file_open_fn = open
+            file_open_mode = "r"
+
+        with file_open_fn(input_file, file_open_mode) as file:
+            print("Now creating batches")
+            reader = csv.DictReader(file)
+            batch_num = 0
+
+            while True:
+                batch = list(itertools.islice(reader, batch_size))
+                if not batch:
+                    break  # Exit the loop if batch is empty
+
+                batch_file = os.path.join(tmp_dir, f"batch_{batch_num}.parquet")
+                df = pd.DataFrame(batch, columns=fieldnames)
+                df.to_parquet(batch_file, index=False)
+
+                unique_features.update(row[feature_colname] for row in batch)
+                batch_num += 1
+                print(f"Created batch {batch_num}")
 
     # Convert the set of unique features to a sorted numpy array
     unique_features = np.array(sorted(unique_features))
@@ -257,7 +243,10 @@ def process_batch(
     """
 
     # read in file with pandas
-    df_batch = pd.read_csv(batch_file)
+    df_batch = pd.read_parquet(batch_file)
+    
+    df_batch[x_colname] = pd.to_numeric(df_batch[x_colname], errors='coerce')
+    df_batch[y_colname] = pd.to_numeric(df_batch[y_colname], errors='coerce')
 
     # adjusting coordinates
     df_batch[x_colname] = (df_batch[x_colname]) * coord_to_um_conversion
@@ -304,11 +293,10 @@ def process_batch(
 
     if quality_per_hexagon == True:
         # create hexagon_quality from df_batch
+        df_batch[quality_colname] = pd.to_numeric(df_batch[quality_colname], errors='coerce')
         hexagon_quality = df_batch.groupby("hexagons")[quality_colname].agg(
             ["mean", "count"]
         )
-        print(f"Type of hexagon_quality: {type(hexagon_quality)}")
-        print(hexagon_quality)
         if isinstance(hexagon_quality, pd.DataFrame):
             hexagon_quality = hexagon_quality.to_dict(orient="index")
         else:
@@ -327,8 +315,8 @@ def process_batch(
             print(
                 "probe_quality is not a DataFrame. Skipping conversion to dictionary."
             )
-            print(f"Type of probe_quality: {type(probe_quality)}")
-            print(probe_quality)
+
+            
 
     if quality_filter:
         df_batch = df_batch[df_batch[quality_colname] > 20]
@@ -485,7 +473,7 @@ def process_csv_file(
     hexagon_counts = pd.DataFrame()
     hexagon_cell_counts = pd.DataFrame()
 
-    batch_files = [os.path.join(tmp_dir, f"batch_{i}.csv") for i in range(num_batches)]
+    batch_files = [os.path.join(tmp_dir, f"batch_{i}.parquet") for i in range(num_batches)]
     n_process = min(max_workers, multiprocessing.cpu_count())
     print(f"Processing batches using {n_process} processes")
     with concurrent.futures.ProcessPoolExecutor(max_workers=n_process) as executor:
@@ -522,6 +510,7 @@ def process_csv_file(
                 hexagon_counts = pd.concat(
                     [hexagon_counts, batch_hexagon_counts], axis=0
                 )
+                print(hexagon_counts.head())
                 hexagon_counts = (
                     hexagon_counts[["hexagons", feature_colname, "counts"]]
                     .groupby(["hexagons", feature_colname])

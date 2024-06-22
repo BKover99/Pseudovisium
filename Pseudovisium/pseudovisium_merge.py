@@ -85,7 +85,6 @@ def load_data(folder):
     ]
 
     scalefactors = json.load(open(folder + "/spatial/scalefactors_json.json"))
-
     # check if there is an arguments.json file in the folder if yes it is pv if not it is v
     data_source = "pv" if scalefactors["fiducial_diameter_fullres"] == 0 else "v"
 
@@ -187,7 +186,7 @@ def merge_data(folders, pv_format=False):
     features_df = pd.DataFrame()
     barcodes_df = pd.DataFrame()
 
-    # Visium datasets are not set to 1um units.
+    
 
     scalefactor_hires_vals = []
     for folder in folders:
@@ -488,6 +487,8 @@ def stitch_images(
             ] = image_to_add
 
     new_tissue_positions_list.drop(["dataset", "barcode_id"], axis=1, inplace=True)
+    #round "tissue_col" and "tissue_row" to integers
+    new_tissue_positions_list["tissue_col"] = new_tissue_positions_list["tissue_col"].astype(int)
     return new_tissue_positions_list, stitched_image
 
 

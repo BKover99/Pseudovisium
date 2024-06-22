@@ -2597,7 +2597,7 @@ def main():
         required=True,
     )
     parser.add_argument(
-        "--output_folder", "-o", default="/Users/k23030440/", help="Output folder path"
+        "--output_folder", "-o", default=os.getcwd(), help="Output folder path"
     )
     parser.add_argument(
         "--gene_names",
