@@ -23,46 +23,8 @@ import scipy.sparse
 from pathlib import Path
 import subprocess
 import datetime
-
-
-def delete_temporary_files():
-    """
-    Deletes temporary batch files and directories created by the script.
-
-    Searches for directories starting with "tmp_hexa" in the system's temporary directory
-    and prompts the user to confirm deletion of these directories and their contents.
-    If the user confirms, the directories are deleted.
-    """
-    temp_dir = tempfile.gettempdir()
-    print(f"Searching for temporary batch files in: {temp_dir}")
-
-    remaining_files = []
-    for root, dirs, files in os.walk(temp_dir):
-        for dir_name in dirs:
-            if dir_name.startswith("tmp_hexa"):
-                dir_path = os.path.join(root, dir_name)
-                remaining_files.append(dir_path)
-
-    if remaining_files:
-        print(f"Found {len(remaining_files)} remaining temporary directories.")
-
-        confirmation = input(
-            "Do you want to delete these temporary directories and their contents? (y/n): "
-        )
-        if confirmation.lower() == "y":
-            for dir_path in remaining_files:
-                try:
-                    shutil.rmtree(dir_path)
-                    print(f"Deleted: {dir_path}")
-                except OSError as e:
-                    print(f"Error deleting {dir_path}: {e}")
-            print("Temporary directories deleted.")
-        else:
-            print("Deletion canceled.")
-    else:
-        print("No remaining temporary batch files found.")
-
 from numba import jit
+
 
 @jit(nopython=True)
 def closest_hex(x, y, hexagon_size, spot_diameter=None):
@@ -90,25 +52,46 @@ def closest_hex(x, y, hexagon_size, spot_diameter=None):
         option_1_hexagon = (x_ * 2 * hexagon_size, y_ * 1.732050807 * hexagon_size)
 
         # lower right
-        option_2_hexagon = ((x_ + 1) * 2 * hexagon_size, y_ * 1.732050807 * hexagon_size)
+        option_2_hexagon = (
+            (x_ + 1) * 2 * hexagon_size,
+            y_ * 1.732050807 * hexagon_size,
+        )
 
         # upper middle
-        option_3_hexagon = ((x_ + 0.5) * 2 * hexagon_size, (y_ + 1) * 1.732050807 * hexagon_size)
+        option_3_hexagon = (
+            (x_ + 0.5) * 2 * hexagon_size,
+            (y_ + 1) * 1.732050807 * hexagon_size,
+        )
 
     else:
         # lower middle
-        option_1_hexagon = ((x_ + 0.5) * 2 * hexagon_size, y_ * (1.732050807 * hexagon_size))
+        option_1_hexagon = (
+            (x_ + 0.5) * 2 * hexagon_size,
+            y_ * (1.732050807 * hexagon_size),
+        )
 
         # upper left
-        option_2_hexagon = (x_ * 2 * hexagon_size, (y_ + 1) * 1.732050807 * hexagon_size)
+        option_2_hexagon = (
+            x_ * 2 * hexagon_size,
+            (y_ + 1) * 1.732050807 * hexagon_size,
+        )
 
         # upper right
-        option_3_hexagon = ((x_ + 1) * 2 * hexagon_size, (y_ + 1) * 1.732050807 * hexagon_size)
+        option_3_hexagon = (
+            (x_ + 1) * 2 * hexagon_size,
+            (y_ + 1) * 1.732050807 * hexagon_size,
+        )
 
     # Calculate distances
-    distance_1 = np.sqrt((x - option_1_hexagon[0]) ** 2 + (y - option_1_hexagon[1]) ** 2)
-    distance_2 = np.sqrt((x - option_2_hexagon[0]) ** 2 + (y - option_2_hexagon[1]) ** 2)
-    distance_3 = np.sqrt((x - option_3_hexagon[0]) ** 2 + (y - option_3_hexagon[1]) ** 2)
+    distance_1 = np.sqrt(
+        (x - option_1_hexagon[0]) ** 2 + (y - option_1_hexagon[1]) ** 2
+    )
+    distance_2 = np.sqrt(
+        (x - option_2_hexagon[0]) ** 2 + (y - option_2_hexagon[1]) ** 2
+    )
+    distance_3 = np.sqrt(
+        (x - option_3_hexagon[0]) ** 2 + (y - option_3_hexagon[1]) ** 2
+    )
 
     # Find the minimum distance
     min_distance = min(distance_1, distance_2, distance_3)
@@ -122,7 +105,7 @@ def closest_hex(x, y, hexagon_size, spot_diameter=None):
         closest = option_3_hexagon
 
     closest = (round(closest[0], 0), round(closest[1], 1))
-    
+
     if spot:
         if np.sqrt((x - closest[0]) ** 2 + (y - closest[1]) ** 2) < spot_diameter / 2:
             return closest
@@ -132,77 +115,8 @@ def closest_hex(x, y, hexagon_size, spot_diameter=None):
         return closest
 
 
-def preprocess_csv(input_file, batch_size, fieldnames, feature_colname):
-    """
-    Preprocesses a CSV or Parquet file by splitting it into smaller batches and saving them as Parquet files.
-
-    Args:
-        input_file (str): The path to the input file (CSV or Parquet).
-        batch_size (int): The number of rows per batch.
-        fieldnames (list): The list of field names to include in the batch Parquet files.
-        feature_colname (str): The name of the column containing feature names.
-
-    Returns:
-        tuple: A tuple containing:
-            - tmp_dir (str): The path to the temporary directory where batch files are stored.
-            - batch_num (int): The total number of batches created.
-            - unique_features (numpy.ndarray): The sorted unique features.
-    """
-    unique_features = set()
-    tmp_dir = tempfile.mkdtemp(prefix="tmp_hexa")
-    print(f"Created temporary directory {tmp_dir}")
-
-    is_parquet = input_file.endswith('.parquet')
-
-    if is_parquet:
-        # Process Parquet file
-        parquet_file = pq.ParquetFile(input_file)
-        batch_num = 0
-        for batch in parquet_file.iter_batches(batch_size=batch_size):
-            df = batch.to_pandas()[fieldnames]
-            batch_file = os.path.join(tmp_dir, f"batch_{batch_num}.parquet")
-            df.to_parquet(batch_file, index=False)
-            
-            unique_features.update(df[feature_colname])
-            batch_num += 1
-            print(f"Created batch {batch_num}")
-    else:
-        # Process CSV file
-        if input_file.endswith(".gz"):
-            file_open_fn = gzip.open
-            file_open_mode = "rt"
-        else:
-            file_open_fn = open
-            file_open_mode = "r"
-
-        with file_open_fn(input_file, file_open_mode) as file:
-            print("Now creating batches")
-            reader = csv.DictReader(file)
-            batch_num = 0
-
-            while True:
-                batch = list(itertools.islice(reader, batch_size))
-                if not batch:
-                    break  # Exit the loop if batch is empty
-
-                batch_file = os.path.join(tmp_dir, f"batch_{batch_num}.parquet")
-                df = pd.DataFrame(batch, columns=fieldnames)
-                df.to_parquet(batch_file, index=False)
-
-                unique_features.update(row[feature_colname] for row in batch)
-                batch_num += 1
-                print(f"Created batch {batch_num}")
-
-    # Convert the set of unique features to a sorted numpy array
-    unique_features = np.array(sorted(unique_features))
-
-    print(f"Finished preprocessing. Total batches created: {batch_num}")
-    return tmp_dir, batch_num, unique_features
-
-
 def process_batch(
-    batch_file,
-    unique_features,
+    df_batch,
     hexagon_size,
     feature_colname,
     x_colname,
@@ -218,11 +132,10 @@ def process_batch(
     spot_diameter=None,
 ):
     """
-    Processes a batch CSV file to calculate hexagon counts and cell counts.
+    Processes a batch of data to calculate hexagon counts and cell counts.
 
     Args:
-        batch_file (str): The path to the batch CSV file.
-        unique_features (numpy.ndarray): The sorted unique features.
+        df_batch (pd.DataFrame): The DataFrame containing the batch data.
         hexagon_size (float): The size of the hexagon.
         feature_colname (str): The name of the feature column.
         x_colname (str): The name of the x-coordinate column.
@@ -242,11 +155,8 @@ def process_batch(
                and probe quality dictionaries.
     """
 
-    # read in file with pandas
-    df_batch = pd.read_parquet(batch_file)
-    
-    df_batch[x_colname] = pd.to_numeric(df_batch[x_colname], errors='coerce')
-    df_batch[y_colname] = pd.to_numeric(df_batch[y_colname], errors='coerce')
+    df_batch[x_colname] = pd.to_numeric(df_batch[x_colname], errors="coerce")
+    df_batch[y_colname] = pd.to_numeric(df_batch[y_colname], errors="coerce")
 
     # adjusting coordinates
     df_batch[x_colname] = (df_batch[x_colname]) * coord_to_um_conversion
@@ -277,9 +187,7 @@ def process_batch(
     df_batch["hexagons"] = hexagons
     # filter out rows where hexagon is -1
     df_batch = df_batch[df_batch["hexagons"] != "-1"]
-    df_batch[feature_colname] = df_batch[feature_colname].map(
-        {feature: i for i, feature in enumerate(unique_features)}
-    )
+
     # create a dok matrix to store the counts, which is
     counts = (
         np.ones(df_batch.shape[0])
@@ -291,9 +199,12 @@ def process_batch(
 
     df_batch["counts"] = counts
 
+    if quality_filter or quality_per_hexagon or quality_per_probe:
+        df_batch[quality_colname] = pd.to_numeric(
+            df_batch[quality_colname], errors="coerce"
+        )
+
     if quality_per_hexagon == True:
-        # create hexagon_quality from df_batch
-        df_batch[quality_colname] = pd.to_numeric(df_batch[quality_colname], errors='coerce')
         hexagon_quality = df_batch.groupby("hexagons")[quality_colname].agg(
             ["mean", "count"]
         )
@@ -315,8 +226,6 @@ def process_batch(
             print(
                 "probe_quality is not a DataFrame. Skipping conversion to dictionary."
             )
-
-            
 
     if quality_filter:
         df_batch = df_batch[df_batch[quality_colname] > 20]
@@ -413,10 +322,10 @@ def process_csv_file(
     spot_diameter=None,
 ):
     """
-    Processes a CSV file to calculate hexagon counts and cell counts using parallel processing.
+    Processes a CSV or Parquet file to calculate hexagon counts and cell counts using parallel processing.
 
     Args:
-        csv_file (str): The path to the CSV file.
+        csv_file (str): The path to the CSV or Parquet file.
         hexagon_size (float): The size of the hexagon.
         batch_size (int, optional): The number of rows per batch. Defaults to 1000000.
         technology (str, optional): The technology used. Defaults to "Xenium".
@@ -464,53 +373,84 @@ def process_csv_file(
     if count_colname != "NA":
         fieldnames.append(count_colname)
 
-    tmp_dir, num_batches, unique_features = preprocess_csv(
-        csv_file, batch_size, fieldnames, feature_colname
-    )
-
     hexagon_quality = {}
     probe_quality = {}
     hexagon_counts = pd.DataFrame()
     hexagon_cell_counts = pd.DataFrame()
-
-    batch_files = [os.path.join(tmp_dir, f"batch_{i}.parquet") for i in range(num_batches)]
     n_process = min(max_workers, multiprocessing.cpu_count())
     print(f"Processing batches using {n_process} processes")
-    with concurrent.futures.ProcessPoolExecutor(max_workers=n_process) as executor:
-        futures = [
-            executor.submit(
-                process_batch,
-                batch_file,
-                unique_features,
-                hexagon_size,
-                feature_colname,
-                x_colname,
-                y_colname,
-                cell_id_colname,
-                quality_colname,
-                quality_filter,
-                count_colname,
-                smoothing,
-                quality_per_hexagon,
-                quality_per_probe,
-                coord_to_um_conversion,
-                spot_diameter,
-            )
-            for batch_file in batch_files
-        ]
+
+    is_parquet = csv_file.endswith(".parquet")
+
+    with concurrent.futures.ProcessPoolExecutor(max_workers=max_workers) as executor:
+        if is_parquet:
+            print("Reading parquet file...")
+            parquet_file = pq.ParquetFile(csv_file)
+            num_batches = -(
+                -parquet_file.metadata.num_rows // batch_size
+            )  # Ceiling division
+            futures = [
+                executor.submit(
+                    process_batch,
+                    batch.to_pandas()[fieldnames],
+                    hexagon_size,
+                    feature_colname,
+                    x_colname,
+                    y_colname,
+                    cell_id_colname,
+                    quality_colname,
+                    quality_filter,
+                    count_colname,
+                    smoothing,
+                    quality_per_hexagon,
+                    quality_per_probe,
+                    coord_to_um_conversion,
+                    spot_diameter,
+                )
+                for batch in parquet_file.iter_batches(batch_size=batch_size)
+            ]
+        else:
+            file_open_fn = gzip.open if csv_file.endswith(".gz") else open
+            file_open_mode = "rt" if csv_file.endswith(".gz") else "r"
+            with file_open_fn(csv_file, file_open_mode) as file:
+                reader = csv.DictReader(file)
+                futures = []
+                while True:
+                    chunk = list(itertools.islice(reader, batch_size))
+                    if not chunk:
+                        break
+                    df_chunk = pd.DataFrame(chunk, columns=fieldnames)
+                    futures.append(
+                        executor.submit(
+                            process_batch,
+                            df_chunk,
+                            hexagon_size,
+                            feature_colname,
+                            x_colname,
+                            y_colname,
+                            cell_id_colname,
+                            quality_colname,
+                            quality_filter,
+                            count_colname,
+                            smoothing,
+                            quality_per_hexagon,
+                            quality_per_probe,
+                            coord_to_um_conversion,
+                            spot_diameter,
+                        )
+                    )
 
         with tqdm(
-            total=len(batch_files), desc="Processing batches", unit="batch"
+            total=len(futures), desc="Processing batches", unit="batch"
         ) as progress_bar:
             for future in concurrent.futures.as_completed(futures):
-
                 all_res = future.result()
                 batch_hexagon_counts = all_res[0]
                 # stack the batch_hexagon_counts under the hexagon_counts
                 hexagon_counts = pd.concat(
                     [hexagon_counts, batch_hexagon_counts], axis=0
                 )
-                print(hexagon_counts.head())
+
                 hexagon_counts = (
                     hexagon_counts[["hexagons", feature_colname, "counts"]]
                     .groupby(["hexagons", feature_colname])
@@ -598,6 +538,14 @@ def process_csv_file(
             {hexagon: i for i, hexagon in enumerate(unique_hexagons)}
         )
 
+    unique_features = hexagon_counts[feature_colname].unique()
+    # turn to np array and sort
+    unique_features = np.sort(unique_features)
+
+    hexagon_counts[feature_colname] = hexagon_counts[feature_colname].map(
+        {feature: i for i, feature in enumerate(unique_features)}
+    )
+
     hexagon_counts = scipy.sparse.csr_matrix(
         (
             hexagon_counts["counts"],
@@ -605,8 +553,6 @@ def process_csv_file(
         ),
         shape=(len(hexagon_counts["hexagons"].unique()), len(unique_features)),
     )
-
-    shutil.rmtree(tmp_dir)  # Remove temporary directory and files
 
     return (
         hexagon_counts,
@@ -643,19 +589,18 @@ def create_pseudovisium(
 
     Args:
         path (str): The path to create the Pseudovisium output directory.
-        hexagon_counts (dict): A dictionary of hexagon counts.
+        hexagon_counts (scipy.sparse.csr_matrix): A sparse matrix of hexagon counts.
         unique_hexagons (numpy.ndarray): The sorted unique hexagons.
         unique_features (numpy.ndarray): The sorted unique features.
-        hexagon_cell_counts (dict): A dictionary of hexagon cell counts.
+        hexagon_cell_counts (pd.DataFrame): A DataFrame of hexagon cell counts.
         hexagon_quality (dict): A dictionary of hexagon quality scores.
         probe_quality (dict): A dictionary of probe quality scores.
         cell_id_colname (str): The name of the cell ID column.
         img_file_path (str, optional): The path to the image file. Defaults to None.
-        shift_to_positive (bool, optional): Whether to shift columns, rows, and full-resolution pixel values to positive if any are negative. Defaults to False.
+        shift_to_positive (bool, optional): Whether to shift coordinates to positive values. Defaults to False.
         project_name (str, optional): The name of the project. Defaults to "project".
         alignment_matrix_file (str, optional): The path to the alignment matrix file. Defaults to None.
-        image_pixels_per_um (float, optional): The number of image pixels per micrometer.
-                                                Defaults to 1.0.
+        image_pixels_per_um (float, optional): The number of image pixels per micrometer. Defaults to 1.0.
         hexagon_size (int, optional): The size of the hexagon. Defaults to 50.
         tissue_hires_scalef (float, optional): The scaling factor for the high-resolution tissue image.
                                                 Defaults to 0.2.
@@ -696,6 +641,7 @@ def create_pseudovisium(
         "tissue_hires_scalef": tissue_hires_scalef,
         "tissue_lowres_scalef": tissue_hires_scalef / 10,
         "fiducial_diameter_fullres": 0,
+        "hexagon_diameter": 2 * hexagon_size,
     }
 
     if spot:
@@ -815,10 +761,6 @@ def create_pseudovisium(
         print("No quality information provided. Skipping quality information files.")
     else:
         print("Creating quality_per_probe.csv file in spatial folder.")
-        # map back probe_quality indices to unique_features
-        # iterate through its keys, and rename it
-        for key in list(probe_quality.keys()):
-            probe_quality[unique_features[key]] = probe_quality.pop(key)
 
         with open(folderpath + "/spatial/quality_per_probe.csv", "w", newline="") as f:
             writer = csv.writer(f)
@@ -1144,11 +1086,11 @@ def anndata_to_df(
 
 def visium_hd_curio_to_transcripts(folder, output, technology, x_col=None, y_col=None):
     """
-    Converts Visium HD or Curio files to a transcripts CSV file.
+    Converts Visium HD or Curio files to a transcripts Parquet file.
 
     Args:
         folder (str): The path to the Visium HD or Curio folder.
-        output (str): The path to save the transcripts CSV file.
+        output (str): The path to save the transcripts Parquet file.
         technology (str): The technology used, either "Visium_HD" or "Curio".
         x_col (str, optional): The name of the x-coordinate column (for Curio). Defaults to None.
         y_col (str, optional): The name of the y-coordinate column (for Curio). Defaults to None.
@@ -1169,14 +1111,15 @@ def visium_hd_curio_to_transcripts(folder, output, technology, x_col=None, y_col
             tissue_pos=tissue_pos,
             scalefactors=scalefactors,
         )
-        df.to_csv(output, index=False)
+        # create parquet file
+        df.to_parquet(output, index=False)
         return image_resolution
     elif technology == "Curio":
         adata = read_files(folder, technology)
         df, scale = anndata_to_df(
             adata=adata, technology=technology, x_col=x_col, y_col=y_col
         )
-        df.to_csv(output, index=False)
+        df.to_parquet(output, index=False)
         return scale
 
 
@@ -1218,36 +1161,32 @@ def generate_pv(
 
     Args:
         csv_file (str): The path to the CSV file.
-        hexagon_size (float): The size of the hexagon.
-        output_path (str, optional): The path to save the Pseudovisium output. Defaults to ".".
         img_file_path (str, optional): The path to the image file. Defaults to None.
+        shift_to_positive (bool, optional): Whether to shift coordinates to positive values. Defaults to False.
+        hexagon_size (float, optional): The size of the hexagon. Defaults to 50.
+        output_path (str, optional): The path to save the Pseudovisium output. Defaults to None.
         batch_size (int, optional): The number of rows per batch. Defaults to 1000000.
+        alignment_matrix_file (str, optional): The path to the alignment matrix file. Defaults to None.
+        project_name (str, optional): The name of the project. Defaults to "project".
+        image_pixels_per_um (float, optional): The number of image pixels per micrometer. Defaults to 1.
+        tissue_hires_scalef (float, optional): The scaling factor for the high-resolution tissue image. Defaults to 0.2.
         technology (str, optional): The technology used. Defaults to "Xenium".
         feature_colname (str, optional): The name of the feature column. Defaults to "feature_name".
         x_colname (str, optional): The name of the x-coordinate column. Defaults to "x_location".
         y_colname (str, optional): The name of the y-coordinate column. Defaults to "y_location".
         cell_id_colname (str, optional): The name of the cell ID column. Defaults to "None".
         quality_colname (str, optional): The name of the quality score column. Defaults to "qv".
-        max_workers (int, optional): The maximum number of worker processes to use.
-                                     Defaults to min(2, multiprocessing.cpu_count()).
+        pixel_to_micron (bool, optional): Whether to convert pixel coordinates to micron coordinates. Defaults to False.
+        max_workers (int, optional): The maximum number of worker processes to use. Defaults to min(2, multiprocessing.cpu_count()).
         quality_filter (bool, optional): Whether to filter rows based on quality score. Defaults to False.
         count_colname (str, optional): The name of the count column. Defaults to "NA".
-        smoothing (float, optional): The smoothing factor. Defaults to False.
+        visium_hd_folder (str, optional): The path to the Visium HD folder. Defaults to None.
+        smoothing (bool, optional): Whether to apply smoothing to the counts. Defaults to False.
         quality_per_hexagon (bool, optional): Whether to calculate quality per hexagon. Defaults to False.
         quality_per_probe (bool, optional): Whether to calculate quality per probe. Defaults to False.
         h5_x_colname (str, optional): The name of the x-coordinate column in the h5 file. Defaults to "x".
         h5_y_colname (str, optional): The name of the y-coordinate column in the h5 file. Defaults to "y".
-        coord_to_um_conversion (float, optional): The conversion factor from coordinates to micrometers.
-                                                   Defaults to 1.
-        visium_hd_folder (str, optional): The path to the Visium HD folder. Defaults to None.
-        shift_to_positive (bool, optional): Whether to shift columns, rows, and full-resolution pixel values to positive if any are negative. Defaults to False.
-        project_name (str, optional): The name of the project. Defaults to "project".
-        alignment_matrix_file (str, optional): The path to the alignment matrix file. Defaults to None.
-        image_pixels_per_um (float, optional): The number of image pixels per micrometer. Defaults to 1.0.
-        tissue_hires_scalef (float, optional): The scaling factor for the high-resolution tissue image.
-                                                Defaults to 0.2.
-        pixel_to_micron (bool, optional): Whether to convert pixel coordinates to micron coordinates.
-                                           Defaults to False.
+        coord_to_um_conversion (float, optional): The conversion factor from coordinates to micrometers. Defaults to 1.
         spot_diameter (float, optional): The diameter of the spot. Defaults to None.
     """
     try:
@@ -1283,25 +1222,25 @@ def generate_pv(
             or (technology == "Visium HD")
         ):
             print(
-                "Technology is Visium_HD. Generating transcripts.csv file from Visium HD files."
+                "Technology is Visium_HD. Generating transcripts.parquet file from Visium HD files."
             )
             # Automatically calculating image_pixels_per_um from the scalefactors_json.json file
             image_pixels_per_um = visium_hd_curio_to_transcripts(
-                visium_hd_folder, visium_hd_folder + "/transcripts.csv", technology
+                visium_hd_folder, visium_hd_folder + "/transcripts.parquet", technology
             )
-            csv_file = visium_hd_folder + "/transcripts.csv"
+            csv_file = visium_hd_folder + "/transcripts.parquet"
         if technology == "Curio":
             print(
-                "Technology is Curio. Generating transcripts.csv file from Curio files."
+                "Technology is Curio. Generating transcripts.parquet file from Curio files."
             )
             smoothing_scale = visium_hd_curio_to_transcripts(
                 visium_hd_folder,
-                visium_hd_folder + "/transcripts.csv",
+                visium_hd_folder + "/transcripts.parquet",
                 technology,
                 x_col=h5_x_colname,
                 y_col=h5_y_colname,
             )
-            csv_file = visium_hd_folder + "/transcripts.csv"
+            csv_file = visium_hd_folder + "/transcripts.parquet"
             print("Smoothing defaults to : {0}".format(smoothing_scale / 4))
             smoothing = smoothing_scale / 4
 
@@ -1463,13 +1402,18 @@ def generate_pv(
 
         end = time.time()
         print(f"Time taken: {end - start} seconds")
-    finally:
-        delete_temporary_files()
+    except Exception as e:
+        print("Error: Unable to generate Pseudovisium output.")
+        print(f"Error details: {str(e)}")
 
 
 def main():
     """
     The main function that parses command-line arguments and calls the generate_pv function.
+
+    This function sets up the argument parser, processes the command-line arguments,
+    and calls the generate_pv function with the provided parameters. It also handles
+    the display of help information and verbose output if requested.
     """
     parser = argparse.ArgumentParser(description="Process parameters.")
     parser.add_argument(

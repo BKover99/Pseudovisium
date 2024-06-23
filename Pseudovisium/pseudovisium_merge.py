@@ -20,7 +20,10 @@ def from_h5_to_files(fold):
     Convert filtered_feature_bc_matrix.h5 file to features.tsv, barcodes.tsv, and matrix.mtx files.
 
     Args:
-    fold (str): Path to the folder containing the filtered_feature_bc_matrix.h5 file.
+        fold (str): Path to the folder containing the filtered_feature_bc_matrix.h5 file.
+
+    Returns:
+        None
     """
     # look for h5 ending file
     h5file = [f for f in os.listdir(fold) if f.endswith(".h5")][0]
@@ -43,10 +46,12 @@ def load_data(folder):
     Load data from a folder containing Visium/Pseudovisium output files.
 
     Args:
-    folder (str): Path to the folder containing Visium/Pseudovisium output files.
+        folder (str): Path to the folder containing Visium/Pseudovisium output files.
 
     Returns:
-    tuple: A tuple containing dataset name and a dictionary with loaded data.
+        tuple: A tuple containing:
+            - dataset_name (str): Name of the dataset.
+            - data (dict): A dictionary with loaded data including matrix, tissue positions, features, barcodes, image, scalefactors, and data source.
     """
     dataset_name = folder.split("/")[-2]
     print(f"Loading in {dataset_name}")
@@ -138,9 +143,19 @@ def load_data(folder):
 
     if data_source == "v":
         # get correction factor
+        # find the fourth and fifth value in tissue_positions_list["y"]
+        spot_dist = (
+            tissue_positions_list["y"].values[3] - tissue_positions_list["y"].values[4]
+        )
+        real_dist = 50
+        micron_per_pixel = real_dist / abs(spot_dist)
+        tissue_positions_list["x"] = tissue_positions_list["x"] * micron_per_pixel
+        tissue_positions_list["y"] = tissue_positions_list["y"] * micron_per_pixel
+    elif data_source == "pv":
+        # get correction factor
         spot_diam = scalefactors["spot_diameter_fullres"]
-        real_diam = 55
-        micron_per_pixel = real_diam / spot_diam  # this will be about 1/2
+        real_diam = scalefactors["hexagon_diameter"]
+        micron_per_pixel = real_diam / spot_diam
         tissue_positions_list["x"] = tissue_positions_list["x"] * micron_per_pixel
         tissue_positions_list["y"] = tissue_positions_list["y"] * micron_per_pixel
 
@@ -172,13 +187,22 @@ def merge_data(folders, pv_format=False):
     Merge data from multiple Visium output folders.
 
     Args:
-    folders (list): List of folder paths containing Visium output files.
-    pv_format (bool, optional): Indicate if input is in Pseudovisium format. Defaults to False.
+        folders (list): List of folder paths containing Visium output files.
+        pv_format (bool, optional): Indicate if input is in Pseudovisium format. Defaults to False.
 
     Returns:
-    tuple: A tuple containing dataset names, nested dictionary, features DataFrame, barcodes DataFrame,
-            maximum x-range, maximum y-range, maximum column range, maximum row range, minimum scale factor,
-            scale factors for saving, and resize factors.
+        tuple: A tuple containing:
+            - dataset_names (list): List of dataset names.
+            - nested_dict (dict): Nested dictionary containing data for each dataset.
+            - features_df (pd.DataFrame): DataFrame containing features from all datasets.
+            - barcodes_df (pd.DataFrame): DataFrame containing barcodes from all datasets.
+            - max_x_range (float): Maximum x-range across all datasets.
+            - max_y_range (float): Maximum y-range across all datasets.
+            - max_col_range (float): Maximum column range across all datasets.
+            - max_row_range (float): Maximum row range across all datasets.
+            - scalefactor_hires (float): Minimum high-resolution scale factor across all datasets.
+            - scalefactors_for_save (dict): Scale factors for saving.
+            - resize_factors (list): List of resize factors for each dataset.
     """
 
     dataset_names = []
@@ -186,21 +210,42 @@ def merge_data(folders, pv_format=False):
     features_df = pd.DataFrame()
     barcodes_df = pd.DataFrame()
 
-    
-
     scalefactor_hires_vals = []
     for folder in folders:
         scalefactors = json.load(open(folder + "/spatial/scalefactors_json.json"))
         data_source = "pv" if scalefactors["fiducial_diameter_fullres"] == 0 else "v"
-        real_spot_diam_pixel = 100
+        real_spot_diam_pixel = scalefactors["spot_diameter_fullres"]
         if data_source == "v":
-            spot_diam = scalefactors["spot_diameter_fullres"]
-            real_diam = 55
-            micron_per_pixel = real_diam / spot_diam
-            real_spot_diam_pixel = 55 * 1 / micron_per_pixel
+            tissue_positions_list = pd.read_csv(
+            folder + "/spatial/tissue_positions_list.csv", header=None
+            )
+            tissue_positions_list.columns = [
+                "barcode",
+                "in_tissue",
+                "tissue_col",
+                "tissue_row",
+                "x",
+                "y",
+            ]
+            spot_dist = (
+                tissue_positions_list["y"].values[3]
+                - tissue_positions_list["y"].values[4]
+            )
+            real_dist = 50
+            micron_per_pixel = real_dist / abs(spot_dist)
+            real_spot_diam_pixel = scalefactors["spot_diameter_fullres"]
             scalefactors["tissue_hires_scalef"] = (
                 scalefactors["tissue_hires_scalef"] / micron_per_pixel
             )
+        elif data_source == "pv":
+            spot_diam = scalefactors["spot_diameter_fullres"]
+            real_diam = scalefactors["hexagon_diameter"]
+            micron_per_pixel = real_diam / spot_diam
+            real_spot_diam_pixel = spot_diam
+            scalefactors["tissue_hires_scalef"] = (
+                scalefactors["tissue_hires_scalef"] / micron_per_pixel
+            )
+
         scalefactor_hires_vals.append(scalefactors["tissue_hires_scalef"])
 
     min_scalefactor = min(scalefactor_hires_vals)
@@ -282,10 +327,11 @@ def consensus_features(features_df, only_common):
     Create a consensus index for features across all datasets.
 
     Args:
-    features_df (pd.DataFrame): DataFrame containing features from all datasets.
+        features_df (pd.DataFrame): DataFrame containing features from all datasets.
+        only_common (bool): If True, only keep features present in all datasets.
 
     Returns:
-    pd.DataFrame: Updated features DataFrame with consensus index.
+        pd.DataFrame: Updated features DataFrame with consensus index.
     """
 
     features_df_all = features_df.copy()
@@ -321,12 +367,15 @@ def adjust_matrix_barcodes(
     Adjust matrix and barcode IDs in the nested dictionary.
 
     Args:
-    nested_dict (dict): Nested dictionary containing data for each dataset.
-    features_df_all (pd.DataFrame): DataFrame containing features with consensus index.
-    pv_format (bool, optional): Indicate if input is in Pseudovisium format. Defaults to False.
+        nested_dict (dict): Nested dictionary containing data for each dataset.
+        features_df_all (pd.DataFrame): DataFrame containing features with consensus index.
+        pv_format (bool, optional): Indicate if input is in Pseudovisium format. Defaults to False.
+        only_common (bool, optional): If True, only keep features present in all datasets. Defaults to True.
 
     Returns:
-    tuple: A tuple containing the updated nested dictionary and the total number of barcodes.
+        tuple: A tuple containing:
+            - nested_dict (dict): Updated nested dictionary with adjusted matrix and barcode IDs.
+            - n_barcodes_before (int): Total number of barcodes across all datasets.
     """
     n_barcodes_before = 0
     for dataset_name in nested_dict.keys():
@@ -386,16 +435,18 @@ def stitch_images(
     Stitch images from multiple datasets into a single large image.
 
     Args:
-    nested_dict (dict): Nested dictionary containing data for each dataset.
-    grid (list): Grid dimensions for stitching images.
-    max_x_range (float): Maximum x-range of the stitched image.
-    max_y_range (float): Maximum y-range of the stitched image.
-    max_col_range (float): Maximum column range of the stitched image.
-    max_row_range (float): Maximum row range of the stitched image.
-    scalefactor_hires (float): High-resolution scale factor.
+        nested_dict (dict): Nested dictionary containing data for each dataset.
+        grid (list): Grid dimensions for stitching images.
+        max_x_range (float): Maximum x-range of the stitched image.
+        max_y_range (float): Maximum y-range of the stitched image.
+        max_col_range (float): Maximum column range of the stitched image.
+        max_row_range (float): Maximum row range of the stitched image.
+        scalefactor_hires (float): High-resolution scale factor.
 
     Returns:
-    tuple: A tuple containing the new tissue positions list and the stitched image.
+        tuple: A tuple containing:
+            - new_tissue_positions_list (pd.DataFrame): DataFrame with updated tissue positions.
+            - stitched_image (np.ndarray): Numpy array of the stitched image.
     """
 
     new_tissue_positions_list = pd.DataFrame(
@@ -487,8 +538,10 @@ def stitch_images(
             ] = image_to_add
 
     new_tissue_positions_list.drop(["dataset", "barcode_id"], axis=1, inplace=True)
-    #round "tissue_col" and "tissue_row" to integers
-    new_tissue_positions_list["tissue_col"] = new_tissue_positions_list["tissue_col"].astype(int)
+    # round "tissue_col" and "tissue_row" to integers
+    new_tissue_positions_list["tissue_col"] = new_tissue_positions_list[
+        "tissue_col"
+    ].astype(int)
     return new_tissue_positions_list, stitched_image
 
 
@@ -497,11 +550,11 @@ def write_10X_h5(adata, file):
     Writes an AnnData object to a 10X-formatted h5 file.
 
     Args:
-    adata (AnnData): The AnnData object to be written.
-    file (str): The file name to be written to. If no extension is provided, '.h5' is appended.
+        adata (AnnData): The AnnData object to be written.
+        file (str): The file name to be written to. If no extension is provided, '.h5' is appended.
 
     Returns:
-    None
+        None
     """
 
     if ".h5" not in file:
@@ -553,15 +606,18 @@ def save_output(
     Save the merged output files.
 
     Args:
-    folderpath (str): Path to the output folder.
-    scalefactors_for_save (dict): Scale factors for saving.
-    barcodes_df_all (pd.DataFrame): DataFrame containing all barcodes.
-    new_tissue_positions_list (pd.DataFrame): DataFrame containing new tissue positions.
-    pv_format (bool): Indicate if input is in Pseudovisium format.
-    nested_dict (dict): Nested dictionary containing data for each dataset.
-    dataset_names (list): List of dataset names.
-    features_df_all (pd.DataFrame): DataFrame containing all features.
-    stitched_image (np.ndarray): Stitched image array.
+        folderpath (str): Path to the output folder.
+        scalefactors_for_save (dict): Scale factors for saving.
+        barcodes_df_all (pd.DataFrame): DataFrame containing all barcodes.
+        new_tissue_positions_list (pd.DataFrame): DataFrame containing new tissue positions.
+        pv_format (bool): Indicate if input is in Pseudovisium format.
+        nested_dict (dict): Nested dictionary containing data for each dataset.
+        dataset_names (list): List of dataset names.
+        features_df_all (pd.DataFrame): DataFrame containing all features.
+        stitched_image (np.ndarray): Stitched image array.
+
+    Returns:
+        None
     """
 
     if not os.path.exists(folderpath):
@@ -682,10 +738,14 @@ def merge_visium(folders, output_path, project_name, pv_format=False, only_commo
     Merge Pseudovisium/Visium output from multiple folders.
 
     Args:
-    folders (list): List of folder paths containing Pseudovisium/Visium output files.
-    output_path (str): Path to the output folder.
-    project_name (str): Project name for output.
-    pv_format (bool, optional): Indicate if input is in Pseudovisium format. Defaults to False.
+        folders (list): List of folder paths containing Pseudovisium/Visium output files.
+        output_path (str): Path to the output folder.
+        project_name (str): Project name for output.
+        pv_format (bool, optional): Indicate if input is in Pseudovisium format. Defaults to False.
+        only_common (bool, optional): If True, only keep features present in all datasets. Defaults to True.
+
+    Returns:
+        None
     """
     try:
         output = (
@@ -761,6 +821,12 @@ def merge_visium(folders, output_path, project_name, pv_format=False, only_commo
 def main():
     """
     Main function to parse command-line arguments and run the merging process.
+
+    This function sets up the argument parser, processes the input arguments,
+    and calls the merge_visium function with the provided parameters.
+
+    Returns:
+        None
     """
 
     parser = argparse.ArgumentParser(
