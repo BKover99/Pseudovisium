@@ -85,6 +85,9 @@ Technologies tried include:
 #### seqFISH (Spatial Genomics)
 #### VisiumHD (10X)
 
+Tested operating systems include:
+#### Windows 10
+#### MacOS Sonoma 14.3.1
 
 ## 🚀 Get Started with Pseudovisium
 
