@@ -1,6 +1,5 @@
 import csv
 import numpy as np
-import math
 import pandas as pd
 import cv2
 import json
@@ -8,7 +7,6 @@ import gzip
 import concurrent.futures
 import os
 import shutil
-import tempfile
 from tqdm import tqdm
 import itertools
 import argparse
@@ -39,7 +37,7 @@ def closest_hex(x, y, hexagon_size, spot_diameter=None):
 
     Returns:
         tuple: The closest hexagon centroid coordinates (x, y) rounded to the nearest integer.
-               Returns (-1, -1) if the spot diameter is provided and the distance to the closest
+               Returns -1 if the spot diameter is provided and the distance to the closest
                hexagon centroid is greater than half the spot diameter.
     """
     spot = spot_diameter is not None
@@ -110,7 +108,7 @@ def closest_hex(x, y, hexagon_size, spot_diameter=None):
         if np.sqrt((x - closest[0]) ** 2 + (y - closest[1]) ** 2) < spot_diameter / 2:
             return closest
         else:
-            return -1
+            return str(-1)
     else:
         return closest
 
