@@ -125,7 +125,14 @@ For more information and the latest version, visit the Pseudovisium PyPI page ht
 
 ## Citation
 To cite Pseudovisium, cite the Pseudovisium pre-print.
-###### To be added.
+https://www.biorxiv.org/content/10.1101/2024.07.23.604776v1
+
+DOI: https://doi.org/10.1101/2024.07.23.604776
+
+*Kover B, Vigilante A. Rapid and memory-efficient analysis and quality control of large spatial transcriptomics datasets [Internet]. bioRxiv; 2024. p. 2024.07.23.604776. Available from: https://www.biorxiv.org/content/10.1101/2024.07.23.604776v1*
+
+
+
 
 ### Author
 Bence Kover
