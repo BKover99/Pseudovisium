@@ -2,11 +2,11 @@
 Pseudovisium is a Python software package designed to democratize the analysis of spatial transcriptomics data. By leveraging hexagonal binning, Pseudovisium enables efficient compression and visualization of spatial data, making exploratory analysis and quality control at least an order of magnitude faster and more memory efficient. The goal of this tool is not to increase accuracy, but to make spatial data analysis more accessible, regardless of computing environment. Additionally, this package facilitates simulating low-res/Visium spatial experiments both for practical (e.g. experimental design) and theoretical (e.g. studying the impact of resolution) purposes.
 
 ## 🚀 Key Features
-### 1. generate_pv:   Data Compression 📊
+### 1. *pseudovisium_generate* module:   Data Compression 📊
 
 The generate_pv command takes your spatial transcriptomics data in CSV format and performs hexagonal binning to compress the data while preserving spatial information. It calculates hexagon counts and cell counts, and creates a well-structured output directory with all the necessary files for downstream analysis.
 
-#### generate_pv arguments:
+#### CLI arguments for *pseudovisium_generate* or generate_pv() (e.g. used within Jupyter notebook) function:
 
 | Argument | Shorthand | Description |
 | --- | --- | --- |
@@ -38,11 +38,11 @@ The generate_pv command takes your spatial transcriptomics data in CSV format an
 | `spot_diameter` | `-sd` | The diameter of the spot for Visium-like array structure (optional). |
 
 
-### 2. qc:   Quality Control 📈
+### 2. *pseudovisium_qc* module:  Quality Control 📈
 
 Pseudovisium's qc command generates a detailed quality control (QC) report for a set of Pseudovisium/Visium formatted replicates. It calculates a wide range of metrics, including the number of hexagons with a minimum count threshold, the number of genes present in a certain percentage of hexagons, and the median counts and features per hexagon. The report also showcases hexagon plots for selected genes and provides comparison plots between different datasets, allowing you to assess the quality and consistency of your data.
 
-#### qc arguments:
+#### CLI arguments for *pseudovisium_qc* or generate_qc_report() (e.g. used within Jupyter notebook) function:
 
 | Argument | Shorthand | Description |
 | --- | --- | --- |
@@ -57,11 +57,11 @@ Pseudovisium's qc command generates a detailed quality control (QC) report for a
 | `minimal_plots` | `-mp` | Generate minimal plots by excluding heatmaps and individual comparison plots (default: False). |
 
 
-### 3. merge:   Data Merging 🧩 
+### 3. *pseudovisium_merge* module:     Data Merging 🧩 
 
 With the merge command, you can easily merge multiple Pseudovisium or Visium format files. This feature allows you to combine data from different datasets, merge images together, and generate a merged output directory in the Pseudovisium/Visium format. Pseudovisium_merge makes it effortless to merge data from multiple spatial transcriptomics experiments, enabling comprehensive analysis across datasets.
 
-#### qc arguments:
+#### CLI arguments for *pseudovisium_merge* or merge_visium() (e.g. used within Jupyter notebook) function:
 
 | Argument | Shorthand | Description |
 | --- | --- | --- |
