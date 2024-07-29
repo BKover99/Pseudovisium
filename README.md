@@ -115,12 +115,12 @@ For more information and the latest version, visit the Pseudovisium PyPI page ht
 [Performing spatial GSEA with spatialAUC](https://github.com/BKover99/spatialAUC)
 
 ## Goals
-
+- [x] Starting rotation project with working prototype - Apr 7, 2024
 - [x] Releasing the repo with minimal working capabilities - Apr 20, 2024
 - [x] Adding supporting Colab notebooks - Jun 20, 2024
 - [x] Releasing all data used in this work on OneDrive - Jun 20, 2024
 - [x] Tidying up all code - Jun 20, 2024
-- [ ] Posting pre-print to Biorxiv
+- [x] Posting pre-print to Biorxiv - July 24, 2024  https://www.biorxiv.org/content/10.1101/2024.07.23.604776v1.full
 - [ ] Publication of peer-reviewed research article
 
 ## Citation
