@@ -1444,7 +1444,8 @@ def generate_pv(
 
 
 
-#also adding an option to run the script just on anndata objects
+#also adding an option to run binning just on anndata objects
+
 def spatial_binning_adata(adata, bin_size, bin_type = 'hex'):
     """
     Performs spatial binning (hexagonal or square) on an AnnData object based on spatial coordinates.
@@ -1457,8 +1458,7 @@ def spatial_binning_adata(adata, bin_size, bin_type = 'hex'):
     Returns:
         AnnData: A new AnnData object with spatially binned data.
     """
-    
-    from anndata import AnnData
+
     # Extract spatial coordinates
     coords = adata.obsm["spatial"]
     x, y = coords[:, 0], coords[:, 1]
@@ -1479,12 +1479,13 @@ def spatial_binning_adata(adata, bin_size, bin_type = 'hex'):
 
     # Create a DataFrame with bin assignments
     df = pd.DataFrame({
-        "bin": [str(b) for b in bins],
+        "bin_x": bins[:, 0],
+        "bin_y": bins[:, 1],
         "original_index": range(adata.n_obs)
     })
 
     # Group by bin and aggregate
-    grouped = df.groupby("bin")["original_index"].apply(list)
+    grouped = df.groupby(["bin_x", "bin_y"])["original_index"].apply(list)
 
     # Create new observation data
     new_obs = pd.DataFrame(index=[f"{bin_type}_bin_{i}" for i in range(len(grouped))])
@@ -1492,23 +1493,23 @@ def spatial_binning_adata(adata, bin_size, bin_type = 'hex'):
 
     # Aggregate expression data
     new_X = scipy.sparse.lil_matrix((len(grouped), adata.n_vars))
-    for i, (bin_, indices) in enumerate(grouped.items()):
+    for i, (_, indices) in enumerate(grouped.items()):
         new_X[i] = adata.X[indices].sum(axis=0)
     new_X = new_X.tocsr()
 
     # Create new AnnData object
-    new_adata = AnnData(X=new_X, obs=new_obs, var=adata.var.copy())
+    new_adata = sc.AnnData(X=new_X, obs=new_obs, var=adata.var.copy())
 
     # Add spatial coordinates for the bins
-    new_adata.obsm["spatial"] = np.array([eval(b) for b in grouped.index])
+    new_adata.obsm["spatial"] = np.array(grouped.index.tolist())
 
     # Add metadata
+    new_adata.uns = adata.uns.copy()
     new_adata.uns["bin_size"] = bin_size
     new_adata.uns["bin_type"] = bin_type
     new_adata.uns["original_adata_shape"] = adata.shape
 
     return new_adata
-
 
 
 
