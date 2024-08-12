@@ -113,6 +113,24 @@ def closest_hex(x, y, hexagon_size, spot_diameter=None):
         return closest
 
 
+def closest_square(x, y, square_size):
+    """
+    Calculates the closest square centroid to the given (x, y) coordinates.
+    
+    Args:
+        x (float): The x-coordinate.
+        y (float): The y-coordinate.
+        square_size (float): The length of the square side.
+
+    Returns:
+        tuple: The closest square centroid coordinates (x, y) rounded to the nearest integer.
+    """
+    
+    x_ = x // square_size
+    y_ = y // square_size
+    return (round((x_ + 0.5) * square_size, 0), round((y_ + 0.5) * square_size, 0))
+
+
 def process_batch(
     df_batch,
     hexagon_size,
@@ -128,6 +146,7 @@ def process_batch(
     quality_per_probe=False,
     coord_to_um_conversion=1,
     spot_diameter=None,
+    hex_square="hex",
 ):
     """
     Processes a batch of data to calculate hexagon counts and cell counts.
@@ -147,6 +166,7 @@ def process_batch(
         quality_per_probe (bool, optional): Whether to calculate quality per probe. Defaults to False.
         coord_to_um_conversion (float, optional): The conversion factor from coordinates to micrometers. Defaults to 1.
         spot_diameter (float, optional): The diameter of the spot. Defaults to None.
+        hex_square (str, optional): The shape observational units. Defaults to "hex".
 
     Returns:
         tuple: A tuple containing the hexagon counts, hexagon cell counts, hexagon quality,
@@ -176,12 +196,20 @@ def process_batch(
         df_batch = df_batch.iloc[df_batch_changed.shape[0] :]
 
     # based on x and y column, apply closest_hex. If spot_diameter is set, then use that to recapitulate raw visium
-    hexagons = np.array(
-        [
-            str(closest_hex(x, y, hexagon_size, spot_diameter))
-            for x, y in zip(df_batch[x_colname], df_batch[y_colname])
-        ]
-    )
+    if hex_square == "hex":
+        hexagons = np.array(
+            [ 
+                str(closest_hex(x, y, hexagon_size, spot_diameter))
+                for x, y in zip(df_batch[x_colname], df_batch[y_colname])
+            ]
+        )
+    elif hex_square == "square":
+        hexagons = np.array(
+            [ 
+                str(closest_square(x, y, hexagon_size))
+                for x, y in zip(df_batch[x_colname], df_batch[y_colname])
+            ]
+        )
     df_batch["hexagons"] = hexagons
     # filter out rows where hexagon is -1
     df_batch = df_batch[df_batch["hexagons"] != "-1"]
@@ -318,6 +346,8 @@ def process_csv_file(
     h5_y_colname="y",
     coord_to_um_conversion=1,
     spot_diameter=None,
+    hex_square="hex"
+
 ):
     """
     Processes a CSV or Parquet file to calculate hexagon counts and cell counts using parallel processing.
@@ -344,6 +374,7 @@ def process_csv_file(
         coord_to_um_conversion (float, optional): The conversion factor from coordinates to micrometers.
                                                   Defaults to 1.
         spot_diameter (float, optional): The diameter of the spot. Defaults to None.
+        hex_square (str, optional): The shape observational units. Defaults to "hex".
 
     Returns:
         tuple: A tuple containing the hexagon counts, unique hexagons, unique features,
@@ -404,6 +435,7 @@ def process_csv_file(
                     quality_per_probe,
                     coord_to_um_conversion,
                     spot_diameter,
+                    hex_square
                 )
                 for batch in parquet_file.iter_batches(batch_size=batch_size)
             ]
@@ -435,6 +467,7 @@ def process_csv_file(
                             quality_per_probe,
                             coord_to_um_conversion,
                             spot_diameter,
+                            hex_square
                         )
                     )
 
@@ -1153,6 +1186,7 @@ def generate_pv(
     h5_y_colname="y",
     coord_to_um_conversion=1,
     spot_diameter=None,
+    hex_square="hex"
 ):
     """
     Generates a Pseudovisium output from a CSV file or Visium HD/Curio folder.
@@ -1186,6 +1220,7 @@ def generate_pv(
         h5_y_colname (str, optional): The name of the y-coordinate column in the h5 file. Defaults to "y".
         coord_to_um_conversion (float, optional): The conversion factor from coordinates to micrometers. Defaults to 1.
         spot_diameter (float, optional): The diameter of the spot. Defaults to None.
+        hex_square (str, optional): The shape of the hexagon. Defaults to "hex".
     """
     try:
         output = (
@@ -1337,6 +1372,7 @@ def generate_pv(
             h5_y_colname=h5_y_colname,
             coord_to_um_conversion=coord_to_um_conversion,
             spot_diameter=spot_diameter,
+            hex_square=hex_square
         )
 
         # Create Pseudovisium output
@@ -1391,6 +1427,7 @@ def generate_pv(
             "h5_y_colname": h5_y_colname,
             "coord_to_um_conversion": coord_to_um_conversion,
             "spot_diameter": spot_diameter,
+            "hex_square": hex_square,
         }
 
         with open(
@@ -1403,6 +1440,76 @@ def generate_pv(
     except Exception as e:
         print("Error: Unable to generate Pseudovisium output.")
         print(f"Error details: {str(e)}")
+
+
+
+
+#also adding an option to run the script just on anndata objects
+def spatial_binning_adata(adata, bin_size, bin_type = 'hex'):
+    """
+    Performs spatial binning (hexagonal or square) on an AnnData object based on spatial coordinates.
+
+    Args:
+        adata (AnnData): The input AnnData object containing spatial information in adata.obsm["spatial"].
+        bin_size (float): The size of the bin (hexagon or square) for binning.
+        bin_type (str): The type of binning to perform. Either 'hex' for hexagonal or 'square' for square binning.
+
+    Returns:
+        AnnData: A new AnnData object with spatially binned data.
+    """
+    
+    from anndata import AnnData
+    # Extract spatial coordinates
+    coords = adata.obsm["spatial"]
+    x, y = coords[:, 0], coords[:, 1]
+
+    # Choose the appropriate binning function
+    if bin_type == 'hex':
+        bin_func = closest_hex
+    elif bin_type == 'square':
+        bin_func = closest_square
+    else:
+        raise ValueError("bin_type must be either 'hex' or 'square'")
+
+    # Assign cells to bins
+    bins = np.array([
+        bin_func(x_coord, y_coord, bin_size)
+        for x_coord, y_coord in zip(x, y)
+    ])
+
+    # Create a DataFrame with bin assignments
+    df = pd.DataFrame({
+        "bin": [str(b) for b in bins],
+        "original_index": range(adata.n_obs)
+    })
+
+    # Group by bin and aggregate
+    grouped = df.groupby("bin")["original_index"].apply(list)
+
+    # Create new observation data
+    new_obs = pd.DataFrame(index=[f"{bin_type}_bin_{i}" for i in range(len(grouped))])
+    new_obs["n_cells"] = grouped.apply(len)
+
+    # Aggregate expression data
+    new_X = scipy.sparse.lil_matrix((len(grouped), adata.n_vars))
+    for i, (bin_, indices) in enumerate(grouped.items()):
+        new_X[i] = adata.X[indices].sum(axis=0)
+    new_X = new_X.tocsr()
+
+    # Create new AnnData object
+    new_adata = AnnData(X=new_X, obs=new_obs, var=adata.var.copy())
+
+    # Add spatial coordinates for the bins
+    new_adata.obsm["spatial"] = np.array([eval(b) for b in grouped.index])
+
+    # Add metadata
+    new_adata.uns["bin_size"] = bin_size
+    new_adata.uns["bin_type"] = bin_type
+    new_adata.uns["original_adata_shape"] = adata.shape
+
+    return new_adata
+
+
 
 
 def main():
@@ -1551,8 +1658,18 @@ def main():
 
     # make sure to add verbose as well
     parser.add_argument(
-        "-help", action="store_true", help="Print out script purpose and parameters"
+        "-help", action="store_true", help="Print out help information"
     )
+
+    parser.add_argument(
+        "--hex_square",
+        "-hex",
+        type=str,
+        help="Shape of observational unit",
+        default="hex",
+    )
+
+
     args = parser.parse_args()
 
     if args.help:
@@ -1591,6 +1708,7 @@ def main():
         coord_to_um_conversion=args.coord_to_um_conversion,
         visium_hd_folder=args.visium_hd_folder,
         spot_diameter=args.spot_diameter,
+        hex_square=args.hex_square
     )
 
     print("Pseudovisium output generated successfully.")
@@ -1598,3 +1716,4 @@ def main():
 
 if __name__ == "__main__":
     main()
+

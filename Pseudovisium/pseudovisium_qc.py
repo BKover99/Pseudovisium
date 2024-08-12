@@ -42,6 +42,7 @@ def generate_qc_report(
     save_plots=False,
     squidpy=False,
     minimal_plots=False,
+    neg_ctrl_string = "control|ctrl|code|Code|assign|Assign|pos|NegPrb|neg|Ctrl|blank|Control|Blank|BLANK"
 ):
     """
     Generate a QC report for Pseudovisium output.
@@ -56,6 +57,7 @@ def generate_qc_report(
         save_plots (bool, optional): Save generated plots as publication ready figures. Defaults to False.
         squidpy (bool, optional): Use squidpy to calculate Moran's I. Defaults to False.
         minimal_plots (bool, optional): Generate minimal plots by excluding heatmaps and individual comparison plots. Defaults to False.
+        neg_ctrl_string (str, optional): String to identify negative control probes. Defaults to "control|ctrl|code|Code|assign|Assign|pos|NegPrb|neg|Ctrl|blank|Control|Blank|BLANK".
     """
 
     if save_plots:
@@ -144,8 +146,7 @@ def generate_qc_report(
             probe_quality.columns = ["Probe_ID", "Quality", "Count"]
             probe_quality["Dataset"] = dataset_name
             non_ctrl_probes = probe_quality[
-                ~probe_quality["Probe_ID"].str.contains(
-                    "control|ctrl|code|Code|assign|Assign|pos|NegPrb|neg|Ctrl|blank|Control|Blank|BLANK"
+                ~probe_quality["Probe_ID"].str.contains(neg_ctrl_string
                 )
             ]
             non_ctrl_probes_q_below_20 = non_ctrl_probes[
@@ -253,7 +254,7 @@ def generate_qc_report(
         number_of_genes = len(
             features[
                 ~features["Gene_ID"].str.contains(
-                    "control|ctrl|code|Code|assign|Assign|pos|NegPrb|neg|Ctrl|blank|Control|Blank|BLANK"
+                    neg_ctrl_string
                 )
             ]
         )
@@ -261,7 +262,7 @@ def generate_qc_report(
         neg_control_probes = (
             features[
                 features["Gene_ID"].str.contains(
-                    "control|ctrl|code|Code|assign|Assign|pos|NegPrb|neg|Ctrl|blank|Control|Blank|BLANK"
+                    neg_ctrl_string
                 )
             ].index
             + 1
@@ -355,12 +356,13 @@ def generate_qc_report(
                 "density",
                 tissue_positions_pv_cell_hex_sum,
                 tissue_positions_list,
+                neg_ctrl_string,
                 max_workers=max_workers,
             )
 
         # dynamic range - sensitivity measures
         non_ctrl_genes = ~matrix_joined["Gene_ID_y"].str.contains(
-            "control|ctrl|code|Code|assign|Assign|pos|NegPrb|neg|Ctrl|blank|Control|Blank|BLANK"
+            neg_ctrl_string
         )
         filtered_matrix = matrix_joined[non_ctrl_genes]
 
@@ -393,7 +395,8 @@ def generate_qc_report(
         max_sum = gene_sums.max()
         sum_abundance_range = np.log10(max_sum) - np.log10(min_sum)
 
-        plot_df = not_working_probe_based_on_sum(matrix_joined, sample_id=dataset_name)
+        plot_df = not_working_probe_based_on_sum(matrix_joined, neg_ctrl_string,
+                                                 sample_id=dataset_name)
         not_working_probes = plot_df[plot_df["Probe category"] == "Bad"].index.values
         n_probes_not_working = len(not_working_probes)
 
@@ -421,6 +424,7 @@ def generate_qc_report(
                         "features",
                         matrix_joined,
                         tissue_positions_list,
+                        neg_ctrl_string,
                         max_workers=max_workers,
                     ),
                     5,
@@ -430,6 +434,7 @@ def generate_qc_report(
                         "counts",
                         matrix_joined,
                         tissue_positions_list,
+                        neg_ctrl_string,
                         max_workers=max_workers,
                     ),
                     5,
@@ -449,12 +454,14 @@ def generate_qc_report(
                 "all",
                 matrix_joined,
                 tissue_positions_list,
+                neg_ctrl_string,
                 max_workers=max_workers,
                 folder=folder,
                 squidpy=squidpy,
             )
             plot_df_morans_i = not_working_probe_based_on_morans_i(
-                replicate_data["morans_i"], sample_id=dataset_name
+                replicate_data["morans_i"], neg_ctrl_string,
+                sample_id=dataset_name
             )
             not_working_probes = plot_df_morans_i[
                 plot_df_morans_i["Probe category"] == "Bad"
@@ -499,6 +506,7 @@ def generate_qc_report(
                     "Quality",
                     matrix_joined,
                     tissue_positions_list,
+                    neg_ctrl_string,
                     max_workers=max_workers,
                 ),
                 5,
@@ -513,7 +521,8 @@ def generate_qc_report(
             ] = np.round(pct_non_ctrl_probes_q_below_20, 5)
             replicate_data["probe_quality"] = probe_quality
             plot_df_quality_per_probe = not_working_probe_based_on_quality(
-                probe_quality, sample_id=dataset_name
+                probe_quality, neg_ctrl_string,
+                sample_id=dataset_name
             )
             replicate_data["probe_quality_stripplot_df"] = plot_df_quality_per_probe
 
@@ -1531,17 +1540,24 @@ def generate_dashboard_html(
             updateMetricDetails();
         </script>
     </body>
+    <p style="text-align:center;">Cite:</p>
+        <p style="text-align:center;"><i>Kover B, Vigilante A. Rapid and memory-efficient<br>
+        analysis and quality control of large spatial<br>
+        transcriptomics datasets [Internet]. bioRxiv; 2024.<br>
+        p. 2024.07.23.604776. Available from:<br>
+        https://www.biorxiv.org/content/10.1101/2024.07.23.604776v1</i></p>
     </html>
     """
     return html_code
 
 
-def not_working_probe_based_on_sum(matrix_joined, sample_id="Sample1"):
+def not_working_probe_based_on_sum(matrix_joined, neg_ctrl_string, sample_id="Sample1"):
     """
     Identify probes that are not working based on their sum counts.
 
     Args:
         matrix_joined (pandas.DataFrame): Joined matrix containing probe information.
+        neg_ctrl_string (str): String to identify negative control probes.
         sample_id (str, optional): Sample ID. Defaults to "Sample1".
 
     Returns:
@@ -1551,12 +1567,12 @@ def not_working_probe_based_on_sum(matrix_joined, sample_id="Sample1"):
     # where index has control|blank|Control|Blank|BLANK in it
     grouped_matrix_neg_probes = grouped_matrix[
         grouped_matrix.index.str.contains(
-            "control|ctrl|code|Code|assign|Assign|pos|NegPrb|neg|Ctrl|blank|Control|Blank|BLANK"
+            neg_ctrl_string
         )
     ]
     grouped_matrix_true_probes = grouped_matrix[
         ~grouped_matrix.index.str.contains(
-            "control|ctrl|code|Code|assign|Assign|pos|NegPrb|neg|Ctrl|blank|Control|Blank|BLANK"
+            neg_ctrl_string
         )
     ]
 
@@ -1718,12 +1734,13 @@ def probe_stripplot(
     return html_fig
 
 
-def not_working_probe_based_on_quality(probe_quality, sample_id="Sample1"):
+def not_working_probe_based_on_quality(probe_quality,neg_ctrl_string, sample_id="Sample1"):
     """
     Identify probes that are not working based on their quality scores.
 
     Args:
         probe_quality (pandas.DataFrame): DataFrame containing probe quality information.
+        neg_ctrl_string (str): String to identify negative control probes.
         sample_id (str, optional): Sample ID. Defaults to "Sample1".
 
     Returns:
@@ -1732,12 +1749,12 @@ def not_working_probe_based_on_quality(probe_quality, sample_id="Sample1"):
 
     probe_quality_neg_probes = probe_quality[
         probe_quality["Probe_ID"].str.contains(
-            "control|ctrl|code|Code|assign|Assign|pos|NegPrb|neg|Ctrl|blank|Control|Blank|BLANK"
+            neg_ctrl_string
         )
     ]
     probe_quality_true_probes = probe_quality[
         ~probe_quality["Probe_ID"].str.contains(
-            "control|ctrl|code|Code|assign|Assign|pos|NegPrb|neg|Ctrl|blank|Control|Blank|BLANK"
+            neg_ctrl_string
         )
     ]
     plot_df = probe_quality.reset_index(drop=True)
@@ -1784,12 +1801,13 @@ def not_working_probe_based_on_quality(probe_quality, sample_id="Sample1"):
     return plot_df
 
 
-def not_working_probe_based_on_morans_i(morans_table, sample_id="Sample1"):
+def not_working_probe_based_on_morans_i(morans_table,neg_ctrl_string, sample_id="Sample1"):
     """
     Identify probes that are not working based on their Moran's I values.
 
     Args:
         morans_table (pandas.DataFrame): DataFrame containing Moran's I values for each probe.
+        neg_ctrl_string (str): String to identify negative control probes.
         sample_id (str, optional): Sample ID. Defaults to "Sample1".
 
     Returns:
@@ -1797,12 +1815,12 @@ def not_working_probe_based_on_morans_i(morans_table, sample_id="Sample1"):
     """
     morans_table_neg_probes = morans_table[
         morans_table.gene.str.contains(
-            "control|ctrl|code|Code|assign|Assign|pos|NegPrb|neg|Ctrl|blank|Control|Blank|BLANK"
+            neg_ctrl_string
         )
     ]
     morans_table_true_probes = morans_table[
         ~morans_table.gene.str.contains(
-            "control|ctrl|code|Code|assign|Assign|pos|NegPrb|neg|Ctrl|blank|Control|Blank|BLANK"
+            neg_ctrl_string
         )
     ]
 
@@ -2245,8 +2263,9 @@ def get_morans_i(
     gene_name,
     matrix_joined,
     tissue_positions_list,
+    neg_ctrl_string,
     max_workers=4,
-    squidpy=False,
+     squidpy=False,
     folder=None,
 ):
     """
@@ -2256,6 +2275,7 @@ def get_morans_i(
         gene_name (str): Name of the gene to calculate Moran's I for. Use "all" to calculate for all genes.
         matrix_joined (pandas.DataFrame): Joined matrix containing probe information.
         tissue_positions_list (pandas.DataFrame): DataFrame containing tissue positions.
+        neg_ctrl_string (str): String to identify negative control probes.
         max_workers (int, optional): Number of workers to use for parallel processing. Defaults to 4.
         squidpy (bool, optional): Use squidpy to calculate Moran's I. Defaults to False.
         folder (str, optional): Folder path for squidpy input. Defaults to None.
@@ -2270,7 +2290,7 @@ def get_morans_i(
         unique_genes_series = pd.Series(unique_genes)
         neg_control_probes = unique_genes_series[
             unique_genes_series.str.lower().str.contains(
-                "control|ctrl|code|assign|pos|negprb|neg|blank"
+                neg_ctrl_string
             )
         ]
         if len(neg_control_probes) < 5:
@@ -2307,7 +2327,7 @@ def get_morans_i(
         unique_genes_series = pd.Series(unique_genes)
         neg_control_probes = unique_genes_series[
             unique_genes_series.str.lower().str.contains(
-                "control|ctrl|code|assign|pos|negprb|neg|blank"
+                neg_ctrl_string
             )
         ]
         if len(neg_control_probes) < 5:
@@ -2645,6 +2665,13 @@ def main():
         help="Generate minimal plots by excluding heatmaps and individual comparison plots",
     )
 
+    parser.add_argument(
+        "--neg_ctrl_string",
+        "-nc",
+        default="neg",
+        help="String to identify negative control probes",
+    )
+
     args = parser.parse_args()
 
     generate_qc_report(
@@ -2657,6 +2684,7 @@ def main():
         save_plots=args.save_plots,
         squidpy=args.squidpy,
         minimal_plots=args.minimal_plots,
+        neg_ctrl_string=args.neg_ctrl_string
     )
 
 
