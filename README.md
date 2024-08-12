@@ -36,6 +36,8 @@ The generate_pv command takes your spatial transcriptomics data in CSV format an
 | `h5_y_colname` | `-h5y` | The name of the y-coordinate column in the h5 file (default: 'y'). |
 | `coord_to_um_conversion` | `-ctu` | The conversion factor from coordinates to micrometers (default: 1). |
 | `spot_diameter` | `-sd` | The diameter of the spot for Visium-like array structure (optional). |
+| `hex_square` | `-hex` | Shape of observational unit ("hex" or "square" - "hex" by default). |
+
 
 
 ### 2. *pseudovisium_qc* module:  Quality Control 📈
@@ -55,6 +57,7 @@ Pseudovisium's qc command generates a detailed quality control (QC) report for a
 | `save_plots` | `-sp` | Save generated plots as publication ready figures (default: False). |
 | `squidpy` | `-sq` | Use squidpy to calculate Moran's I (default: False). |
 | `minimal_plots` | `-mp` | Generate minimal plots by excluding heatmaps and individual comparison plots (default: False). |
+| `neg_ctrl_string` | `-nc` | String to identify negative control probes (default: "control\|ctrl\|code\|Code\|assign\|Assign\|pos\|NegPrb\|neg\|Ctrl\|blank\|Control\|Blank\|BLANK"). |
 
 
 ### 3. *pseudovisium_merge* module:     Data Merging 🧩 
