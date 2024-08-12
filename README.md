@@ -105,6 +105,8 @@ pip install Pseudovisium
 For more information and the latest version, visit the Pseudovisium PyPI page https://pypi.org/project/Pseudovisium/.
 
 ## Compatibility with AnnData / scanpy framework
+Initially the purpose of Pseudovisium was to operate entirely on raw files - raw high-res input to raw PV output. But due to community demands, we now also enable binning of *cells* (not transcripts!) from AnnData objects. This is extremely fast (seconds at most), and might be convenient for a variety of downstream applications.
+
 It is a very straightforward single line of code.
 ```python
 import Pseudovisium.pseudovisium_generate as pvg
