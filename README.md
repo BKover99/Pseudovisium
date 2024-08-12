@@ -57,7 +57,7 @@ Pseudovisium's qc command generates a detailed quality control (QC) report for a
 | `save_plots` | `-sp` | Save generated plots as publication ready figures (default: False). |
 | `squidpy` | `-sq` | Use squidpy to calculate Moran's I (default: False). |
 | `minimal_plots` | `-mp` | Generate minimal plots by excluding heatmaps and individual comparison plots (default: False). |
-| `neg_ctrl_string` | `-nc` | String to identify negative control probes (default: "control|ctrl|code|Code|assign|Assign|pos|NegPrb|neg|Ctrl|blank|Control|Blank|BLANK"). |
+| `neg_ctrl_string` | `-nc` | String to identify negative control probes (default: "control\|ctrl\|code\|Code\|assign\|Assign\|pos\|NegPrb\|neg\|Ctrl\|blank\|Control\|Blank\|BLANK"). |
 
 
 ### 3. *pseudovisium_merge* module:     Data Merging 🧩 
