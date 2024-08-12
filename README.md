@@ -105,6 +105,11 @@ pip install Pseudovisium
 For more information and the latest version, visit the Pseudovisium PyPI page https://pypi.org/project/Pseudovisium/.
 
 ## Compatibility with AnnData / scanpy framework
+It is a very straightforward single line of code.
+```python
+import Pseudovisium.pseudovisium_generate as pvg
+adata_new = pvg.spatial_binning_adata(adata_fullres,25,"hex")
+```
 
 [Converting Nanostring CosMx Pancreas AnnData object to binned data.](https://github.com/BKover99/Pseudovisium/blob/main/Tutorials/Working_on_anndata_Tutorial.ipynb)
 
