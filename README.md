@@ -104,6 +104,10 @@ pip install Pseudovisium
 
 For more information and the latest version, visit the Pseudovisium PyPI page https://pypi.org/project/Pseudovisium/.
 
+## Compatibility with AnnData / scanpy framework
+
+[Converting Nanostring CosMx Pancreas AnnData object to binned data.](https://github.com/BKover99/Pseudovisium/blob/main/Tutorials/Working_on_anndata_Tutorial.ipynb)
+
 ## Examples
 [See the example Google Colab on converting 10X Xenium Mouse pup data to Pseudovisium format](https://github.com/BKover99/Pseudovisium/blob/main/Tutorials/Xenium_Tutorial.ipynb)
 
