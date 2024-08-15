@@ -143,12 +143,12 @@ https://www.biorxiv.org/content/10.1101/2024.07.23.604776v1
 
 DOI: https://doi.org/10.1101/2024.07.23.604776
 
-*Kover B, Vigilante A. Rapid and memory-efficient analysis and quality control of large spatial transcriptomics datasets [Internet]. bioRxiv; 2024. p. 2024.07.23.604776. Available from: https://www.biorxiv.org/content/10.1101/2024.07.23.604776v1*
+*Kövér B, Vigilante A. Rapid and memory-efficient analysis and quality control of large spatial transcriptomics datasets [Internet]. bioRxiv; 2024. p. 2024.07.23.604776. Available from: https://www.biorxiv.org/content/10.1101/2024.07.23.604776v1*
 
 
 
 
 ### Author
-Bence Kover
+Bence Kövér
 https://twitter.com/kover_bence 
 https://www.linkedin.com/in/ben-kover/
