@@ -4,13 +4,13 @@ Pseudovisium is a Python software package designed to democratize the analysis o
 ## 🚀 Key Features
 ### 1. *pseudovisium_generate* module:   Data Compression 📊
 
-The generate_pv command takes your spatial transcriptomics data in CSV format and performs hexagonal binning to compress the data while preserving spatial information. It calculates hexagon counts and cell counts, and creates a well-structured output directory with all the necessary files for downstream analysis.
+The generate_pv command takes your spatial transcriptomics data in CSV/parquet format and performs hexagonal binning to compress the data while preserving spatial information. It calculates hexagon counts and cell counts, and creates a well-structured output directory with all the necessary files for downstream analysis.
 
 #### CLI arguments for *pseudovisium_generate* or generate_pv() (e.g. used within Jupyter notebook) function:
 
 | Argument | Shorthand | Description |
 | --- | --- | --- |
-| `csv_file` | `-c` | The path to the CSV file containing the spatial transcriptomics data. |
+| `csv_file` | `-c` | The path to the CSV/parquet file containing the spatial transcriptomics data. |
 | `img_file_path` | `-i` | The path to the image file associated with the spatial data (optional). |
 | `hexagon_size` | `-hs` | The size of the hexagons used for binning (default: 100). |
 | `output_path` | `-o` | The path to save the Pseudovisium output (default: current directory). |
@@ -20,14 +20,14 @@ The generate_pv command takes your spatial transcriptomics data in CSV format an
 | `image_pixels_per_um` | `-ppu` | The number of image pixels per micrometer (default: 1). |
 | `tissue_hires_scalef` | `-ths` | The scaling factor for the high-resolution tissue image (default: 0.2). |
 | `technology` | `-t` | The technology used for the spatial data (default: 'Xenium'). |
-| `feature_colname` | `-fc` | The name of the feature column in the CSV file (default: 'feature_name'). |
-| `x_colname` | `-xc` | The name of the x-coordinate column in the CSV file (default: 'x_location'). |
-| `y_colname` | `-yc` | The name of the y-coordinate column in the CSV file (default: 'y_location'). |
-| `cell_id_colname` | `-cc` | The name of the cell ID column in the CSV file (default: 'None'). |
-| `quality_colname` | `-qcol` | The name of the quality score column in the CSV file (default: 'qv'). |
+| `feature_colname` | `-fc` | The name of the feature column in the CSV/parquet file (default: 'feature_name'). |
+| `x_colname` | `-xc` | The name of the x-coordinate column in the CSV/parquet file (default: 'x_location'). |
+| `y_colname` | `-yc` | The name of the y-coordinate column in the CSV/parquet file (default: 'y_location'). |
+| `cell_id_colname` | `-cc` | The name of the cell ID column in the CSV/parquet file (default: 'None'). |
+| `quality_colname` | `-qcol` | The name of the quality score column in the CSV/parquet file (default: 'qv'). |
 | `max_workers` | `--mw` | The maximum number of worker processes to use for parallel processing (default: min(2, multiprocessing.cpu_count())). |
 | `quality_filter` | `-qf` | Whether to filter rows based on quality score (default: False). |
-| `count_colname` | `-ccol` | The name of the count column in the CSV file (default: 'NA'). |
+| `count_colname` | `-ccol` | The name of the count column in the CSV/parquet file (default: 'NA'). |
 | `visium_hd_folder` | `-vhf` | The path to the Visium HD folder (optional). |
 | `smoothing` | `-s` | The smoothing factor for high-resolution data (default: False). |
 | `quality_per_hexagon` | `-qph` | Whether to calculate quality per hexagon (default: False). |
