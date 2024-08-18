@@ -115,6 +115,11 @@ adata_new = pvg.spatial_binning_adata(adata_fullres,25,"hex")
 
 [Converting Nanostring CosMx Pancreas AnnData object to binned data.](https://github.com/BKover99/Pseudovisium/blob/main/Tutorials/Working_on_anndata_Tutorial.ipynb)
 
+## Use cases for binning/rasterisation
+
+#### Speeding up analysis and QC (https://doi.org/10.1101/2024.07.23.604776)
+#### Facilitating spatial alignment and 3D atlas building (More to come...)
+
 ## Examples
 [See the example Google Colab on converting 10X Xenium Mouse pup data to Pseudovisium format](https://github.com/BKover99/Pseudovisium/blob/main/Tutorials/Xenium_Tutorial.ipynb)
 
