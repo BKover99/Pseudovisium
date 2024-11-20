@@ -31,7 +31,8 @@ setup(
     'geopandas',
     'seaborn',
     'adjustText',
-    'shapely'
+    'shapely',
+    'spatialdata'
         ],
 
     keywords=['spatial', 'transcriptomics', 'visium', 'xenium', 'cosmx'],

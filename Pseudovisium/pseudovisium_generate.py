@@ -25,14 +25,14 @@ from numba import jit
 
 
 @jit(nopython=True)
-def closest_hex(x, y, hexagon_size, spot_diameter=None):
+def closest_hex(x, y, bin_size, spot_diameter=None):
     """
     Calculates the closest hexagon centroid to the given (x, y) coordinates.
 
     Args:
         x (float): The x-coordinate.
         y (float): The y-coordinate.
-        hexagon_size (float): The size of the hexagon.
+        bin_size (float): The size of the hexagon.
         spot_diameter (float, optional): The diameter of the spot. Defaults to None.
 
     Returns:
@@ -42,42 +42,42 @@ def closest_hex(x, y, hexagon_size, spot_diameter=None):
     """
     spot = spot_diameter is not None
 
-    x_ = x // (hexagon_size * 2)
-    y_ = y // (hexagon_size * 1.732050807)
+    x_ = x // (bin_size * 2)
+    y_ = y // (bin_size * 1.732050807)
 
     if y_ % 2 == 1:
         # lower_left
-        option_1_hexagon = (x_ * 2 * hexagon_size, y_ * 1.732050807 * hexagon_size)
+        option_1_hexagon = (x_ * 2 * bin_size, y_ * 1.732050807 * bin_size)
 
         # lower right
         option_2_hexagon = (
-            (x_ + 1) * 2 * hexagon_size,
-            y_ * 1.732050807 * hexagon_size,
+            (x_ + 1) * 2 * bin_size,
+            y_ * 1.732050807 * bin_size,
         )
 
         # upper middle
         option_3_hexagon = (
-            (x_ + 0.5) * 2 * hexagon_size,
-            (y_ + 1) * 1.732050807 * hexagon_size,
+            (x_ + 0.5) * 2 * bin_size,
+            (y_ + 1) * 1.732050807 * bin_size,
         )
 
     else:
         # lower middle
         option_1_hexagon = (
-            (x_ + 0.5) * 2 * hexagon_size,
-            y_ * (1.732050807 * hexagon_size),
+            (x_ + 0.5) * 2 * bin_size,
+            y_ * (1.732050807 * bin_size),
         )
 
         # upper left
         option_2_hexagon = (
-            x_ * 2 * hexagon_size,
-            (y_ + 1) * 1.732050807 * hexagon_size,
+            x_ * 2 * bin_size,
+            (y_ + 1) * 1.732050807 * bin_size,
         )
 
         # upper right
         option_3_hexagon = (
-            (x_ + 1) * 2 * hexagon_size,
-            (y_ + 1) * 1.732050807 * hexagon_size,
+            (x_ + 1) * 2 * bin_size,
+            (y_ + 1) * 1.732050807 * bin_size,
         )
 
     # Calculate distances
@@ -133,7 +133,7 @@ def closest_square(x, y, square_size):
 
 def process_batch(
     df_batch,
-    hexagon_size,
+    bin_size,
     feature_colname,
     x_colname,
     y_colname,
@@ -153,7 +153,7 @@ def process_batch(
 
     Args:
         df_batch (pd.DataFrame): The DataFrame containing the batch data.
-        hexagon_size (float): The size of the hexagon.
+        bin_size (float): The size of the hexagon.
         feature_colname (str): The name of the feature column.
         x_colname (str): The name of the x-coordinate column.
         y_colname (str): The name of the y-coordinate column.
@@ -199,14 +199,14 @@ def process_batch(
     if hex_square == "hex":
         hexagons = np.array(
             [ 
-                str(closest_hex(x, y, hexagon_size, spot_diameter))
+                str(closest_hex(x, y, bin_size, spot_diameter))
                 for x, y in zip(df_batch[x_colname], df_batch[y_colname])
             ]
         )
     elif hex_square == "square":
         hexagons = np.array(
             [ 
-                str(closest_square(x, y, hexagon_size))
+                str(closest_square(x, y, bin_size))
                 for x, y in zip(df_batch[x_colname], df_batch[y_colname])
             ]
         )
@@ -238,7 +238,7 @@ def process_batch(
             hexagon_quality = hexagon_quality.to_dict(orient="index")
         else:
             print(
-                "hexagon_quality is not a DataFrame. Skipping conversion to dictionary."
+                "hexagon_quality is not a DataFrame. Skipping conversion to dictionary.\n"
             )
 
     if quality_per_probe == True:
@@ -250,7 +250,7 @@ def process_batch(
             probe_quality = probe_quality.to_dict(orient="index")
         else:
             print(
-                "probe_quality is not a DataFrame. Skipping conversion to dictionary."
+                "probe_quality is not a DataFrame. Skipping conversion to dictionary.\n"
             )
 
     if quality_filter:
@@ -295,7 +295,7 @@ def write_10X_h5(adata, file):
     if ".h5" not in file:
         file = f"{file}.h5"
     if Path(file).exists():
-        print(f"File `{file}` already exists. Removing it.")
+        print(f"File `{file}` already exists. Removing it.\n")
         os.remove(file)
 
     adata.var["feature_types"] = ["Gene Expression" for _ in range(adata.var.shape[0])]
@@ -328,7 +328,7 @@ def write_10X_h5(adata, file):
 
 def process_csv_file(
     csv_file,
-    hexagon_size,
+    bin_size,
     batch_size=1000000,
     technology="Xenium",
     feature_colname="feature_name",
@@ -354,7 +354,7 @@ def process_csv_file(
 
     Args:
         csv_file (str): The path to the CSV or Parquet file.
-        hexagon_size (float): The size of the hexagon.
+        bin_size (float): The size of the hexagon.
         batch_size (int, optional): The number of rows per batch. Defaults to 1000000.
         technology (str, optional): The technology used. Defaults to "Xenium".
         feature_colname (str, optional): The name of the feature column. Defaults to "feature_name".
@@ -381,13 +381,13 @@ def process_csv_file(
                hexagon cell counts, hexagon quality, and probe quality dictionaries.
     """
 
-    print(f"Quality filter is set to {quality_filter}")
-    print(f"Quality counting per hexagon is set to {quality_per_hexagon}")
-    print(f"Quality counting per probe is set to {quality_per_probe}")
+    print(f"Quality filter is set to {quality_filter}\n")
+    print(f"Quality counting per hexagon is set to {quality_per_hexagon}\n")
+    print(f"Quality counting per probe is set to {quality_per_probe}\n")
     spot = True if spot_diameter != None else False
     if spot:
         print(
-            "Visium-like spots are going to be used rather than hexagonal tesselation!!!"
+            "Visium-like spots are going to be used rather than hexagonal tesselation!!!\n"
         )
 
     fieldnames = [feature_colname, x_colname, y_colname]
@@ -407,13 +407,13 @@ def process_csv_file(
     hexagon_counts = pd.DataFrame()
     hexagon_cell_counts = pd.DataFrame()
     n_process = min(max_workers, multiprocessing.cpu_count())
-    print(f"Processing batches using {n_process} processes")
+    print(f"Processing batches using {n_process} processes\n")
 
     is_parquet = csv_file.endswith(".parquet")
 
     with concurrent.futures.ProcessPoolExecutor(max_workers=max_workers) as executor:
         if is_parquet:
-            print("Reading parquet file...")
+            print("Reading parquet file...\n")
             parquet_file = pq.ParquetFile(csv_file)
             num_batches = -(
                 -parquet_file.metadata.num_rows // batch_size
@@ -422,7 +422,7 @@ def process_csv_file(
                 executor.submit(
                     process_batch,
                     batch.to_pandas()[fieldnames],
-                    hexagon_size,
+                    bin_size,
                     feature_colname,
                     x_colname,
                     y_colname,
@@ -454,7 +454,7 @@ def process_csv_file(
                         executor.submit(
                             process_batch,
                             df_chunk,
-                            hexagon_size,
+                            bin_size,
                             feature_colname,
                             x_colname,
                             y_colname,
@@ -529,7 +529,7 @@ def process_csv_file(
                                     "count"
                                 ] += quality_dict["count"]
                         except KeyError:
-                            print(f"Error in trying to add to hexagon_quality")
+                            print(f"Error in trying to add to hexagon_quality\n")
 
                 if quality_per_probe == True:
                     if cell_id_colname != "None" and quality_per_hexagon == True:
@@ -557,7 +557,7 @@ def process_csv_file(
                                 )
                                 probe_quality[probe]["count"] += quality_dict["count"]
                         except KeyError:
-                            print(f"Error in trying to add to probe_quality")
+                            print(f"Error in trying to add to probe_quality\n")
                 progress_bar.update(1)
 
     unique_hexagons = hexagon_counts["hexagons"].unique()
@@ -596,7 +596,7 @@ def process_csv_file(
 
 
 def create_pseudovisium(
-    path,
+    output_path,
     hexagon_counts,
     unique_hexagons,
     unique_features,
@@ -609,7 +609,7 @@ def create_pseudovisium(
     project_name="project",
     alignment_matrix_file=None,
     image_pixels_per_um=1.0,
-    hexagon_size=100,
+    bin_size=100,
     tissue_hires_scalef=0.2,
     pixel_to_micron=False,
     max_workers=min(2, multiprocessing.cpu_count()),
@@ -632,7 +632,7 @@ def create_pseudovisium(
         project_name (str, optional): The name of the project. Defaults to "project".
         alignment_matrix_file (str, optional): The path to the alignment matrix file. Defaults to None.
         image_pixels_per_um (float, optional): The number of image pixels per micrometer. Defaults to 1.0.
-        hexagon_size (int, optional): The size of the hexagon. Defaults to 50.
+        bin_size (int, optional): The size of the hexagon. Defaults to 50.
         tissue_hires_scalef (float, optional): The scaling factor for the high-resolution tissue image.
                                                 Defaults to 0.2.
         pixel_to_micron (bool, optional): Whether to convert pixel coordinates to micron coordinates.
@@ -641,28 +641,18 @@ def create_pseudovisium(
                                      Defaults to min(2, multiprocessing.cpu_count()).
         spot_diameter (float, optional): The diameter of the spot. Defaults to None.
     """
+
+
+
+    # to path, create a folder called pseudovisium
+    folderpath = output_path + "/pseudovisium/" + project_name
+
     spot = True if spot_diameter != None else False
     if spot:
         print(
-            "Visium-like array structure is being built rather than hexagonal tesselation!!!"
+            "Visium-like array structure is being built rather than hexagonal tesselation!!!\n"
         )
 
-    # to path, create a folder called pseudovisium
-    folderpath = path + "/pseudovisium/" + project_name
-    # if folderpath exists, delete it
-    if os.path.exists(folderpath):
-        shutil.rmtree(folderpath)
-    try:
-        print("Creating pseudovisium folder in output path:{0}".format(folderpath))
-
-        if os.path.exists(path + "/pseudovisium/"):
-            print("Using already existing folder: {0}".format(path + "/pseudovisium/"))
-        else:
-            os.mkdir(path + "/pseudovisium/")
-        os.mkdir(folderpath)
-        os.mkdir(folderpath + "/spatial")
-    except:
-        pass
 
     ############################################## ##############################################
     # see https://kb.10xgenomics.com/hc/en-us/articles/11636252598925-What-are-the-Xenium-image-scale-factors
@@ -672,15 +662,15 @@ def create_pseudovisium(
         "tissue_hires_scalef": tissue_hires_scalef,
         "tissue_lowres_scalef": tissue_hires_scalef / 10,
         "fiducial_diameter_fullres": 0,
-        "hexagon_diameter": 2 * hexagon_size,
+        "hexagon_diameter": 2 * bin_size,
     }
 
     if spot:
         scalefactors["spot_diameter_fullres"] = spot_diameter * image_pixels_per_um
     else:
-        scalefactors["spot_diameter_fullres"] = 2 * hexagon_size * image_pixels_per_um
+        scalefactors["spot_diameter_fullres"] = 2 * bin_size * image_pixels_per_um
 
-    print("Creating scalefactors_json.json file in spatial folder.")
+    print("Creating scalefactors_json.json file in spatial folder.\n")
     with open(folderpath + "/spatial/scalefactors_json.json", "w") as f:
         json.dump(scalefactors, f)
     ############################################## ##############################################
@@ -689,11 +679,11 @@ def create_pseudovisium(
     for i, hexagon in enumerate(unique_hexagons):
         # convert hexagon back to tuple from its string form
         hexagon = eval(hexagon)
-        x_.append((hexagon[0] + hexagon_size) // (2 * hexagon_size))
-        y_.append(hexagon[1] // (1.73205 * hexagon_size))
+        x_.append((hexagon[0] + bin_size) // (2 * bin_size))
+        y_.append(hexagon[1] // (1.73205 * bin_size))
         x.append(hexagon[0])
         y.append(hexagon[1])
-        contain.append(1 if hexagon_counts[i].sum() > hexagon_size else 0)
+        contain.append(1 if hexagon_counts[i].sum() > bin_size else 0)
 
     ############################################## ##############################################
     barcodes = ["hexagon_{}".format(i) for i in range(1, len(unique_hexagons) + 1)]
@@ -703,7 +693,7 @@ def create_pseudovisium(
         folderpath + "/barcodes.tsv", sep="\t", index=False, header=False
     )
 
-    print("Creating barcodes.tsv.gz file in spatial folder.")
+    print("Creating barcodes.tsv.gz file.\n")
     with open(folderpath + "/barcodes.tsv", "rb") as f_in:
         with gzip.open(folderpath + "/barcodes.tsv.gz", "wb") as f_out:
             f_out.writelines(f_in)
@@ -712,10 +702,10 @@ def create_pseudovisium(
         zip(
             barcodes,
             contain,
-            y_,
-            x_,
-            [int(image_pixels_per_um * a) for a in y],
-            [int(image_pixels_per_um * a) for a in x],
+            y_,  # ideally in microns
+            x_, # ideally in microns
+            [int(image_pixels_per_um * a) for a in y], # in pixel units
+            [int(image_pixels_per_um * a) for a in x], # in pixel units
         ),
         columns=[
             "barcode",
@@ -742,7 +732,7 @@ def create_pseudovisium(
         if min_pxl_col < 0:
             hexagon_table["pxl_col_in_fullres"] -= min_pxl_col
 
-    print("Creating tissue_positions_list.csv file in spatial folder.")
+    print("Creating tissue_positions_list.csv file in spatial folder.\n")
     hexagon_table.to_csv(
         folderpath + "/spatial/tissue_positions_list.csv", index=False, header=False
     )
@@ -751,9 +741,9 @@ def create_pseudovisium(
 
     # if hexagon_cell_counts is pandas df
     if hexagon_cell_counts.empty:
-        print("No cell information provided. Skipping cell information files.")
+        print("No cell information provided. Skipping cell information files.\n")
     else:
-        print("Creating pv_cell_hex.csv file in spatial folder.")
+        print("Creating pv_cell_hex.csv file in spatial folder.\n")
         hexagon_cell_counts = hexagon_cell_counts[
             [cell_id_colname, "hexagon_id", "counts"]
         ]
@@ -765,9 +755,9 @@ def create_pseudovisium(
         )
 
     if hexagon_quality == {}:
-        print("No quality information provided. Skipping quality information files.")
+        print("No quality information provided. Skipping quality information files.\n")
     else:
-        print("Creating quality_per_hexagon.csv file in spatial folder.")
+        print("Creating quality_per_hexagon.csv file in spatial folder.\n")
         with open(
             folderpath + "/spatial/quality_per_hexagon.csv", "w", newline=""
         ) as f:
@@ -780,18 +770,18 @@ def create_pseudovisium(
                     )
                 except IndexError as e:
                     print(
-                        f"Error: Unable to find hexagon '{hexagon}' in unique_hexagons."
+                        f"Error: Unable to find hexagon '{hexagon}' in unique_hexagons.\n"
                     )
-                    print(f"Error details: {str(e)}")
+                    print(f"Error details: {str(e)}\n")
                     print(
-                        f"Skipping quality measurement for hexagon '{hexagon}' with mean {quality_dict['mean']} and count {quality_dict['count']}."
+                        f"Skipping quality measurement for hexagon '{hexagon}' with mean {quality_dict['mean']} and count {quality_dict['count']}.\n"
                     )
 
     ############################################## ##############################################
     if probe_quality == {}:
-        print("No quality information provided. Skipping quality information files.")
+        print("No quality information provided. Skipping quality information files.\n")
     else:
-        print("Creating quality_per_probe.csv file in spatial folder.")
+        print("Creating quality_per_probe.csv file in spatial folder.\n")
 
         with open(folderpath + "/spatial/quality_per_probe.csv", "w", newline="") as f:
             writer = csv.writer(f)
@@ -804,7 +794,7 @@ def create_pseudovisium(
     # Create a list of rows with repeated features and 'Gene Expression' column
     rows = [[feature, feature, "Gene Expression"] for feature in features]
 
-    print("Creating features.tsv.gz file in spatial folder.")
+    print("Creating features.tsv.gz file.\n")
     with open(
         folderpath + "/features.tsv", "wt", newline="", encoding="utf-8"
     ) as f_out:
@@ -819,12 +809,12 @@ def create_pseudovisium(
 
     ############################################## ##############################################
 
-    print("Putting together the matrix.mtx file")
+    print("Putting together the matrix.mtx file\n")
 
-    print(f"Total matrix count: {hexagon_counts.sum()}")
-    print(f"Number of unique hexagons: {len(barcodes)}")
+    print(f"Total matrix count: {hexagon_counts.sum()}\n")
+    print(f"Number of unique hexagons: {len(barcodes)}\n")
 
-    print("Creating matrix.mtx.gz file in spatial folder.")
+    print("Creating matrix.mtx.gz file.\n")
     with open(folderpath + "/matrix.mtx", "wb") as f:
         scipy.io.mmwrite(
             f,
@@ -839,7 +829,7 @@ def create_pseudovisium(
 
     ############################################## ##############################################
 
-    print("Putting together the filtered_feature_bc_matrix.h5 file")
+    print("Putting together the filtered_feature_bc_matrix.h5 file\n")
 
     # Create AnnData object from sparse matrix and barcodes/features
     adata = sc.AnnData(
@@ -856,14 +846,14 @@ def create_pseudovisium(
     # check if alignment matrix file is given
     if alignment_matrix_file:
         print(
-            "Alignment matrix found and will be used to create tissue_hires_image.png and tissue_lowres_image.png files in spatial folder."
+            "Alignment matrix found and will be used to create tissue_hires_image.png and tissue_lowres_image.png files in spatial folder.\n"
         )
         M = pd.read_csv(alignment_matrix_file, header=None, index_col=None).to_numpy()
     else:
         M = np.array([[1.0, 0.0, 0.0], [0.0, 1.0, 0.0], [0.0, 0.0, 1.0]])
         # Load the H&E image
     if img_file_path:
-        print("Image provided at {0}".format(img_file_path))
+        print("Image provided at {0}\n".format(img_file_path))
         # if img_filepath is tiff
         if img_file_path.endswith(".tiff") or img_file_path.endswith(".tif"):
             image = tifffile.imread(img_file_path)
@@ -928,7 +918,7 @@ def create_pseudovisium(
         # finally if image is a single channel, convert to three channels, because some packages will expect that
         # when importing.
         dims = len(image.shape)
-        # if 2, then triple the image to make it thre channels
+        # if 2, then triple the image to make it three channels
         if dims == 2:
             image = np.array([image, image, image])
             # change order of axis
@@ -938,7 +928,7 @@ def create_pseudovisium(
             # change order of axis
             resized = np.moveaxis(resized, 0, -1)
 
-        print("Creating tissue_hires_image.png file in spatial folder.")
+        print("Creating tissue_hires_image.png file in spatial folder.\n")
         # save as 8bit
         cv2.imwrite(
             folderpath + "/spatial/tissue_hires_image.png", image / np.max(image) * 255
@@ -951,7 +941,7 @@ def create_pseudovisium(
     else:
         # output a blank image
         # Create a white background image with tissue positions
-        print("No image file provided. Drawing tissue positions on a white background.")
+        print("No image file provided. Drawing tissue positions on a white background.\n")
 
         # Extract pixel coordinates from hexagon_table
         pixel_coords = np.array(
@@ -1020,16 +1010,23 @@ def read_files(folder, technology):
         h5ad_file = [file for file in folder_files if file.endswith(".h5ad")][0]
         adata = sc.read_h5ad(folder + h5ad_file)
         return adata
+    elif technology == "Zarr":
+        import spatialdata as sd
+        sdata = sd.read_zarr(folder)
+        
+        return sdata
 
 
-def anndata_to_df(
-    adata, technology, tissue_pos=None, scalefactors=None, x_col=None, y_col=None
+
+
+def asdata_to_df(
+    asdata, technology, tissue_pos=None, scalefactors=None, x_col=None, y_col=None,sd_table_id=None
 ):
     """
     Converts an AnnData object to a DataFrame.
 
     Args:
-        adata (AnnData): The AnnData object containing the counts matrix.
+        asdata (AnnData/SpatialData): The AnnData/SpatailData object.
         technology (str): The technology used, either "Visium_HD" or "Curio".
         tissue_pos (DataFrame, optional): The tissue positions DataFrame (for Visium HD). Defaults to None.
         scalefactors (dict, optional): The scale factors dictionary (for Visium HD). Defaults to None.
@@ -1054,7 +1051,7 @@ def anndata_to_df(
         # tissue_pos keep barcode, pxl_row_in_fullres, pxl_col_in_fullres
         tissue_pos = tissue_pos[["barcode", "pxl_row_in_fullres", "pxl_col_in_fullres"]]
         # Convert the AnnData matrix to a sparse matrix (CSR format)
-        X = scipy.sparse.csr_matrix(adata.X)
+        X = scipy.sparse.csr_matrix(asdata.X)
 
         # Get the row and column indices of non-zero elements
         row_indices, col_indices = X.nonzero()
@@ -1062,8 +1059,8 @@ def anndata_to_df(
         # Create a DataFrame with the row names, column names, and counts
         df = pd.DataFrame(
             {
-                "barcode": adata.obs_names[row_indices],
-                "gene": adata.var_names[col_indices],
+                "barcode": asdata.obs_names[row_indices],
+                "gene": asdata.var_names[col_indices],
                 "count": X.data,
             }
         )
@@ -1085,7 +1082,7 @@ def anndata_to_df(
         # get scales
 
         # keep only the columns x,y
-        obs = adata.obs[[x_col, y_col]]
+        obs = asdata.obs[[x_col, y_col]]
         # rename these cols to x and y
         obs.columns = ["x", "y"]
         scale = np.round(
@@ -1094,6 +1091,35 @@ def anndata_to_df(
             ),
             3,
         )  # should be 10um
+
+        obs["barcode"] = obs.index
+        X = scipy.sparse.csr_matrix(asdata.X)
+
+        # Get the row and column indices of non-zero elements
+        row_indices, col_indices = X.nonzero()
+        genes = (
+            asdata.var.index
+            if (asdata.var.index[0] != 0) and (asdata.var.index[0] != "0")
+            else asdata.var[asdata.var.columns[0]]
+        )
+        genes = genes[col_indices]
+        # Create a DataFrame with the row names, column names, and counts
+        df = pd.DataFrame(
+            {"barcode": asdata.obs_names[row_indices], "gene": genes, "count": X.data}
+        )
+        # join with tissue_pos
+        df = pd.merge(df, obs, on="barcode")
+        return df, scale
+    
+    elif technology == "SpatialData":
+
+        adata = asdata.tables[sd_table_id].copy()
+        adata.obs["x"] = adata.obsm["spatial"][:, 0]
+        adata.obs["y"] = adata.obsm["spatial"][:, 1]
+
+
+        # keep only the columns x,y
+        obs = adata.obs[["x", "y"]]
 
         obs["barcode"] = obs.index
         X = scipy.sparse.csr_matrix(adata.X)
@@ -1112,10 +1138,45 @@ def anndata_to_df(
         )
         # join with tissue_pos
         df = pd.merge(df, obs, on="barcode")
-        return df, scale
+
+        return df
+    
+    elif technology == "AnnData":
+
+        adata = asdata.copy()
+        adata.obs["x"] = adata.obsm["spatial"][:, 0]
+        adata.obs["y"] = adata.obsm["spatial"][:, 1]
 
 
-def visium_hd_curio_to_transcripts(folder, output, technology, x_col=None, y_col=None):
+        # keep only the columns x,y
+        obs = adata.obs[["x", "y"]]
+
+        obs["barcode"] = obs.index
+        X = scipy.sparse.csr_matrix(adata.X)
+
+        # Get the row and column indices of non-zero elements
+        row_indices, col_indices = X.nonzero()
+        genes = (
+            adata.var.index
+            if (adata.var.index[0] != 0) and (adata.var.index[0] != "0")
+            else adata.var[adata.var.columns[0]]
+        )
+        genes = genes[col_indices]
+        # Create a DataFrame with the row names, column names, and counts
+        df = pd.DataFrame(
+            {"barcode": adata.obs_names[row_indices], "gene": genes, "count": X.data}
+        )
+        # join with tissue_pos
+        df = pd.merge(df, obs, on="barcode")
+
+        return df
+    
+        
+        
+
+
+
+def anndata_to_transcripts_pq(folder, output, technology, x_col=None, y_col=None,sd_table_id=None):
     """
     Converts Visium HD or Curio files to a transcripts Parquet file.
 
@@ -1136,8 +1197,8 @@ def visium_hd_curio_to_transcripts(folder, output, technology, x_col=None, y_col
         or (technology == "Visium HD")
     ):
         scalefactors, tissue_pos, fb_matrix = read_files(folder, technology)
-        df, image_resolution = anndata_to_df(
-            adata=fb_matrix,
+        df, image_resolution = asdata_to_df(
+            asdata=fb_matrix,
             technology=technology,
             tissue_pos=tissue_pos,
             scalefactors=scalefactors,
@@ -1147,11 +1208,28 @@ def visium_hd_curio_to_transcripts(folder, output, technology, x_col=None, y_col
         return image_resolution
     elif technology == "Curio":
         adata = read_files(folder, technology)
-        df, scale = anndata_to_df(
-            adata=adata, technology=technology, x_col=x_col, y_col=y_col
+        df, scale = asdata_to_df(
+            asdata=adata, technology=technology, x_col=x_col, y_col=y_col
         )
         df.to_parquet(output, index=False)
         return scale
+    
+    elif technology == "Zarr":
+        asdata = read_files(folder, technology)
+        df = asdata_to_df(asdata=asdata, technology="SpatialData",sd_table_id=sd_table_id)
+        df.to_parquet(output, index=False)
+        return None
+    
+    elif technology == "SpatialData":
+        df = asdata_to_df(asdata=adata, technology=technology,sd_table_id=sd_table_id)
+        df.to_parquet(output, index=False)
+        return None
+    
+    elif technology == "AnnData":
+        df = asdata_to_df(asdata=adata, technology=technology,sd_table_id=sd_table_id)
+        df.to_parquet(output, index=False)
+        return None
+    
 
 
 ######### Main function to generate pseudovisium output ############################################################################################################
@@ -1161,7 +1239,7 @@ def generate_pv(
     csv_file,
     img_file_path=None,
     shift_to_positive=False,
-    hexagon_size=100,
+    bin_size=100,
     output_path=None,
     batch_size=1000000,
     alignment_matrix_file=None,
@@ -1178,7 +1256,7 @@ def generate_pv(
     max_workers=min(2, multiprocessing.cpu_count()),
     quality_filter=False,
     count_colname="NA",
-    visium_hd_folder=None,
+    folder_or_object=None,
     smoothing=False,
     quality_per_hexagon=False,
     quality_per_probe=False,
@@ -1186,7 +1264,8 @@ def generate_pv(
     h5_y_colname="y",
     coord_to_um_conversion=1,
     spot_diameter=None,
-    hex_square="hex"
+    hex_square="hex",
+    sd_table_id=None,
 ):
     """
     Generates a Pseudovisium output from a CSV file or Visium HD/Curio folder.
@@ -1195,7 +1274,7 @@ def generate_pv(
         csv_file (str): The path to the CSV file.
         img_file_path (str, optional): The path to the image file. Defaults to None.
         shift_to_positive (bool, optional): Whether to shift coordinates to positive values. Defaults to False.
-        hexagon_size (float, optional): The size of the hexagon. Defaults to 50.
+        bin_size (float, optional): The size of the hexagon. Defaults to 50.
         output_path (str, optional): The path to save the Pseudovisium output. Defaults to None.
         batch_size (int, optional): The number of rows per batch. Defaults to 1000000.
         alignment_matrix_file (str, optional): The path to the alignment matrix file. Defaults to None.
@@ -1212,7 +1291,7 @@ def generate_pv(
         max_workers (int, optional): The maximum number of worker processes to use. Defaults to min(2, multiprocessing.cpu_count()).
         quality_filter (bool, optional): Whether to filter rows based on quality score. Defaults to False.
         count_colname (str, optional): The name of the count column. Defaults to "NA".
-        visium_hd_folder (str, optional): The path to the Visium HD folder. Defaults to None.
+        folder_or_object (str, optional): The path to the VisiumHD/Curio/Zarr folder or Anndata/SpatialData object.
         smoothing (bool, optional): Whether to apply smoothing to the counts. Defaults to False.
         quality_per_hexagon (bool, optional): Whether to calculate quality per hexagon. Defaults to False.
         quality_per_probe (bool, optional): Whether to calculate quality per probe. Defaults to False.
@@ -1221,6 +1300,7 @@ def generate_pv(
         coord_to_um_conversion (float, optional): The conversion factor from coordinates to micrometers. Defaults to 1.
         spot_diameter (float, optional): The diameter of the spot. Defaults to None.
         hex_square (str, optional): The shape of the hexagon. Defaults to "hex".
+        sd_table_id (str, optional): The table id in the SpatialData object. Defaults to None.
     """
     try:
         output = (
@@ -1231,8 +1311,10 @@ def generate_pv(
         )
         version = [x for x in output if "Pseudovisium" in x]
         date = str(datetime.datetime.now().date())
+        print("#####################\n")
         print("You are using version: ", version)
         print("Date: ", date)
+        print("#####################\n")
     except:
         output = (
             subprocess.check_output(["pip3", "freeze"])
@@ -1242,211 +1324,282 @@ def generate_pv(
         )
         version = [x for x in output if "Pseudovisium" in x]
         date = str(datetime.datetime.now().date())
+        print("#####################\n")
         print("You are using version: ", version)
         print("Date: ", date)
+        print("#####################\n")
+    print("#####################\n")
+    print(
+            """This is Pseudovisium, a software that compresses imaging-based spatial transcriptomics files using hexagonal binning of the data.
+            Please cite: Kövér B, Vigilante A. https://www.biorxiv.org/content/10.1101/2024.07.23.604776v1\n
+            """
+        )
+    print("#####################\n")
 
+
+    #try:
+
+    start = time.time()
+    
+
+    # to path, create a folder called pseudovisium
+    folderpath = output_path + "/pseudovisium/" + project_name
+    
+    # if folderpath exists, delete it
+    if os.path.exists(folderpath):
+        shutil.rmtree(folderpath)
+    
+    os.mkdir(folderpath)
     try:
+        print("Creating pseudovisium folder in output path:{0}\n".format(folderpath))
 
-        start = time.time()
-
-        if (
-            (technology == "Visium_HD")
-            or (technology == "VisiumHD")
-            or (technology == "Visium HD")
-        ):
-            print(
-                "Technology is Visium_HD. Generating transcripts.parquet file from Visium HD files."
-            )
-            # Automatically calculating image_pixels_per_um from the scalefactors_json.json file
-            image_pixels_per_um = visium_hd_curio_to_transcripts(
-                visium_hd_folder, visium_hd_folder + "/transcripts.parquet", technology
-            )
-            csv_file = visium_hd_folder + "/transcripts.parquet"
-        if technology == "Curio":
-            print(
-                "Technology is Curio. Generating transcripts.parquet file from Curio files."
-            )
-            smoothing_scale = visium_hd_curio_to_transcripts(
-                visium_hd_folder,
-                visium_hd_folder + "/transcripts.parquet",
-                technology,
-                x_col=h5_x_colname,
-                y_col=h5_y_colname,
-            )
-            csv_file = visium_hd_folder + "/transcripts.parquet"
-            print("Smoothing defaults to : {0}".format(smoothing_scale / 4))
-            smoothing = smoothing_scale / 4
-
-        if technology == "Xenium":
-            print("Technology is Xenium. Going forward with default column names.")
-            x_colname = "x_location"
-            y_colname = "y_location"
-            feature_colname = "feature_name"
-            cell_id_colname = "cell_id"
-            quality_colname = "qv"
-            count_colname = "NA"
-            coord_to_um_conversion = 1
-
-        elif technology == "Vizgen":
-            print("Technology is Vizgen. Going forward with default column names.")
-            x_colname = "global_x"
-            y_colname = "global_y"
-            feature_colname = "gene"
-            # cell_id_colname = "barcode_id"
-            count_colname = "NA"
-            coord_to_um_conversion = 1
-
-        elif (technology == "Nanostring") or (technology == "CosMx"):
-            print("Technology is Nanostring. Going forward with default column names.")
-            x_colname = "x_global_px"
-            y_colname = "y_global_px"
-            feature_colname = "target"
-            cell_id_colname = "cell"
-            count_colname = "NA"
-            coord_to_um_conversion = 0.12028
-            # see ref https://smi-public.objects.liquidweb.services/cosmx-wtx/Pancreas-CosMx-ReadMe.html
-            # https://nanostring.com/wp-content/uploads/2023/09/SMI-ReadMe-BETA_humanBrainRelease.html
-            # Whereas old smi output seems to be 0.18
-            # https://nanostring-public-share.s3.us-west-2.amazonaws.com/SMI-Compressed/SMI-ReadMe.html
-
-        elif (
-            (technology == "Visium_HD")
-            or (technology == "VisiumHD")
-            or (technology == "Visium HD")
-        ):
-            print(
-                "Technology is Visium_HD. Going forward with pseudovisium processed colnames."
-            )
-            x_colname = "x"
-            y_colname = "y"
-            feature_colname = "gene"
-            cell_id_colname = "barcode"
-            count_colname = "count"
-            coord_to_um_conversion = 1
-
-        elif technology == "seqFISH":
-            print("Technology is seqFISH. Going forward with default column names.")
-            x_colname = "x"
-            y_colname = "y"
-            feature_colname = "name"
-            cell_id_colname = "cell"
-            count_colname = "NA"
-            coord_to_um_conversion = 1
-
-        elif technology == "Curio":
-            print("Technology is Curio. Going forward with default column names.")
-            x_colname = "x"
-            y_colname = "y"
-            feature_colname = "gene"
-            cell_id_colname = "barcode"
-            count_colname = "count"
-            coord_to_um_conversion = 1
-
+        if os.path.exists(folderpath + "/pseudovisium/"):
+            print("Using already existing folder: {0}\n".format(folderpath + "/pseudovisium/"))
         else:
-            print("Technology not recognized. Going forward with set column names.")
+            os.mkdir(folderpath + "/pseudovisium/")
+        if os.path.exists(folderpath + "/spatial/"):
+            print("Using already existing folder: {0}\n".format(folderpath + "/spatial/"))
+        else:
+            os.mkdir(folderpath + "/spatial/")
+    except:
+        pass
 
-        (
-            hexagon_counts,
-            unique_hexagons,
-            unique_features,
-            hexagon_cell_counts,
-            hexagon_quality,
-            probe_quality,
-        ) = process_csv_file(
-            csv_file,
-            hexagon_size,
-            batch_size,
+    if (
+        (technology == "Visium_HD")
+        or (technology == "VisiumHD")
+        or (technology == "Visium HD")
+    ):
+        print(
+            "Technology is Visium_HD. Generating transcripts.parquet file from Visium HD files.\n"
+        )
+        # Automatically calculating image_pixels_per_um from the scalefactors_json.json file
+        image_pixels_per_um = anndata_to_transcripts_pq(
+            folder_or_object, folder_or_object + "/transcripts.parquet", technology
+        )
+        csv_file = folderpath + "/transcripts.parquet"
+
+    
+    if technology == "Curio":
+        print(
+            "Technology is Curio. Generating transcripts.parquet file from Curio files.\n"
+        )
+        smoothing_scale = anndata_to_transcripts_pq(
+            folder_or_object,
+            folderpath + "/transcripts.parquet",
             technology,
-            feature_colname,
-            x_colname,
-            y_colname,
-            cell_id_colname,
-            quality_colname=quality_colname,
-            max_workers=max_workers,
-            quality_filter=quality_filter,
-            count_colname=count_colname,
-            smoothing=smoothing,
-            quality_per_hexagon=quality_per_hexagon,
-            quality_per_probe=quality_per_probe,
-            h5_x_colname=h5_x_colname,
-            h5_y_colname=h5_y_colname,
-            coord_to_um_conversion=coord_to_um_conversion,
-            spot_diameter=spot_diameter,
-            hex_square=hex_square
+            x_col=h5_x_colname,
+            y_col=h5_y_colname,
         )
-
-        # Create Pseudovisium output
-        create_pseudovisium(
-            path=output_path,
-            hexagon_counts=hexagon_counts,
-            unique_hexagons=unique_hexagons,
-            unique_features=unique_features,
-            hexagon_cell_counts=hexagon_cell_counts,
-            hexagon_quality=hexagon_quality,
-            probe_quality=probe_quality,
-            cell_id_colname=cell_id_colname,
-            img_file_path=img_file_path,
-            shift_to_positive=shift_to_positive,
-            project_name=project_name,
-            alignment_matrix_file=alignment_matrix_file,
-            image_pixels_per_um=image_pixels_per_um,
-            hexagon_size=hexagon_size,
-            tissue_hires_scalef=tissue_hires_scalef,
-            pixel_to_micron=pixel_to_micron,
-            max_workers=max_workers,
-            spot_diameter=spot_diameter,
+        csv_file = folderpath + "/transcripts.parquet"
+        print("Smoothing defaults to : {0}".format(smoothing_scale / 4))
+        smoothing = smoothing_scale / 4
+    
+    
+    if technology == "Zarr":
+        print(
+            "Technology is unclear, but you passed a Zarr file. Generating transcripts.parquet file from Zarr files.\n"
         )
+        anndata_to_transcripts_pq(
+            folder_or_object,
+            folderpath + "/transcripts.parquet",
+            technology,sd_table_id=sd_table_id
+        )
+        csv_file = folderpath + "/transcripts.parquet"
 
-        # save all arguments in a json file called arguments.json
-        print("Creating arguments.json file in output path.")
-        arguments = {
-            "csv_file": csv_file,
-            "img_file_path": img_file_path,
-            "hexagon_size": hexagon_size,
-            "output_path": output_path,
-            "batch_size": batch_size,
-            "alignment_matrix_file": alignment_matrix_file,
-            "project_name": project_name,
-            "image_pixels_per_um": image_pixels_per_um,
-            "tissue_hires_scalef": tissue_hires_scalef,
-            "technology": technology,
-            "feature_colname": feature_colname,
-            "x_colname": x_colname,
-            "y_colname": y_colname,
-            "cell_id_colname": cell_id_colname,
-            "pixel_to_micron": pixel_to_micron,
-            "quality_colname": quality_colname,
-            "quality_filter": quality_filter,
-            "count_colname": count_colname,
-            "smoothing": smoothing,
-            "quality_per_hexagon": quality_per_hexagon,
-            "quality_per_probe": quality_per_probe,
-            "max_workers": max_workers,
-            "visium_hd_folder": visium_hd_folder,
-            "h5_x_colname": h5_x_colname,
-            "h5_y_colname": h5_y_colname,
-            "coord_to_um_conversion": coord_to_um_conversion,
-            "spot_diameter": spot_diameter,
-            "hex_square": hex_square,
-        }
+    
+    if technology == "SpatialData" or technology == "AnnData":
+        
+        print(
+            "Technology is unclear, but you passed a SpatialData/AnnData object. Generating transcripts.parquet file.\n"
+        )
+        anndata_to_transcripts_pq(
+            folder_or_object,
+            folderpath + "/transcripts.parquet",
+            technology, sd_table_id=sd_table_id
+        )
+        csv_file = folderpath + "/transcripts.parquet"
 
-        with open(
-            output_path + "/pseudovisium/" + project_name + "/arguments.json", "w"
-        ) as f:
-            json.dump(arguments, f)
+    
+    if technology == "Xenium":
+        print("Technology is Xenium. Going forward with default column names.\n")
+        x_colname = "x_location"
+        y_colname = "y_location"
+        feature_colname = "feature_name"
+        cell_id_colname = "cell_id"
+        quality_colname = "qv"
+        count_colname = "NA"
+        #coord_to_um_conversion = 1
 
-        end = time.time()
-        print(f"Time taken: {end - start} seconds")
-    except Exception as e:
-        print("Error: Unable to generate Pseudovisium output.")
-        print(f"Error details: {str(e)}")
+    if technology == "Vizgen":
+        print("Technology is Vizgen. Going forward with default column names.\n")
+        x_colname = "global_x"
+        y_colname = "global_y"
+        feature_colname = "gene"
+        # cell_id_colname = "barcode_id"
+        count_colname = "NA"
+        #coord_to_um_conversion = 1
+
+    if (technology == "Nanostring") or (technology == "CosMx"):
+        print("Technology is Nanostring. Going forward with default column names.\n")
+        x_colname = "x_global_px"
+        y_colname = "y_global_px"
+        feature_colname = "target"
+        cell_id_colname = "cell"
+        count_colname = "NA"
+        if coord_to_um_conversion == 1:
+            print("Knowing CosMx, we are setting coord_to_um_conversion to 0.12028, which is likely better than the default 1.\n")
+            coord_to_um_conversion = 0.12028
+        # see ref https://smi-public.objects.liquidweb.services/cosmx-wtx/Pancreas-CosMx-ReadMe.html
+        # https://nanostring.com/wp-content/uploads/2023/09/SMI-ReadMe-BETA_humanBrainRelease.html
+        # Whereas old smi output seems to be 0.18
+        # https://nanostring-public-share.s3.us-west-2.amazonaws.com/SMI-Compressed/SMI-ReadMe.html
+
+    if (
+        (technology == "Visium_HD")
+        or (technology == "VisiumHD")
+        or (technology == "Visium HD")
+    ):
+        print(
+            "Technology is Visium_HD. Going forward with pseudovisium processed colnames.\n"
+        )
+        x_colname = "x"
+        y_colname = "y"
+        feature_colname = "gene"
+        cell_id_colname = "barcode"
+        count_colname = "count"
+        #coord_to_um_conversion = 1
+
+    if technology == "seqFISH":
+        print("Technology is seqFISH. Going forward with default column names.\n")
+        x_colname = "x"
+        y_colname = "y"
+        feature_colname = "name"
+        cell_id_colname = "cell"
+        count_colname = "NA"
+        #coord_to_um_conversion = 1
+
+    if technology == "Curio":
+        print("Technology is Curio. Going forward with default column names.\n")
+        x_colname = "x"
+        y_colname = "y"
+        feature_colname = "gene"
+        cell_id_colname = "barcode"
+        count_colname = "count"
+        #coord_to_um_conversion = 1
+
+    if (technology == "Zarr") or technology == ("SpatialData") or (technology == "AnnData"):
+        print("Technology is Zarr/SpatialData/AnnData. Going forward with default column names.\n")
+        x_colname = "x"
+        y_colname = "y"
+        feature_colname = "gene"
+        cell_id_colname = "barcode"
+        count_colname = "count"
+
+    else:
+        print("Technology not recognized. Going forward with set column names.\n")
+
+    (
+        hexagon_counts,
+        unique_hexagons,
+        unique_features,
+        hexagon_cell_counts,
+        hexagon_quality,
+        probe_quality,
+    ) = process_csv_file(
+        csv_file,
+        bin_size,
+        batch_size,
+        technology,
+        feature_colname,
+        x_colname,
+        y_colname,
+        cell_id_colname,
+        quality_colname=quality_colname,
+        max_workers=max_workers,
+        quality_filter=quality_filter,
+        count_colname=count_colname,
+        smoothing=smoothing,
+        quality_per_hexagon=quality_per_hexagon,
+        quality_per_probe=quality_per_probe,
+        h5_x_colname=h5_x_colname,
+        h5_y_colname=h5_y_colname,
+        coord_to_um_conversion=coord_to_um_conversion,
+        spot_diameter=spot_diameter,
+        hex_square=hex_square
+    )
+
+    # Create Pseudovisium output
+    create_pseudovisium(
+        output_path=output_path,
+        hexagon_counts=hexagon_counts,
+        unique_hexagons=unique_hexagons,
+        unique_features=unique_features,
+        hexagon_cell_counts=hexagon_cell_counts,
+        hexagon_quality=hexagon_quality,
+        probe_quality=probe_quality,
+        cell_id_colname=cell_id_colname,
+        img_file_path=img_file_path,
+        shift_to_positive=shift_to_positive,
+        project_name=project_name,
+        alignment_matrix_file=alignment_matrix_file,
+        image_pixels_per_um=image_pixels_per_um,
+        bin_size=bin_size,
+        tissue_hires_scalef=tissue_hires_scalef,
+        pixel_to_micron=pixel_to_micron,
+        max_workers=max_workers,
+        spot_diameter=spot_diameter,
+    )
+
+    # save all arguments in a json file called arguments.json
+    print("Creating arguments.json file in output path.\n")
+    arguments = {
+        "csv_file": csv_file,
+        "img_file_path": img_file_path,
+        "bin_size": bin_size,
+        "output_path": output_path,
+        "batch_size": batch_size,
+        "alignment_matrix_file": alignment_matrix_file,
+        "project_name": project_name,
+        "image_pixels_per_um": image_pixels_per_um,
+        "tissue_hires_scalef": tissue_hires_scalef,
+        "technology": technology,
+        "feature_colname": feature_colname,
+        "x_colname": x_colname,
+        "y_colname": y_colname,
+        "cell_id_colname": cell_id_colname,
+        "pixel_to_micron": pixel_to_micron,
+        "quality_colname": quality_colname,
+        "quality_filter": quality_filter,
+        "count_colname": count_colname,
+        "smoothing": smoothing,
+        "quality_per_hexagon": quality_per_hexagon,
+        "quality_per_probe": quality_per_probe,
+        "max_workers": max_workers,
+        "folder_or_object": folder_or_object,
+        "h5_x_colname": h5_x_colname,
+        "h5_y_colname": h5_y_colname,
+        "coord_to_um_conversion": coord_to_um_conversion,
+        "spot_diameter": spot_diameter,
+        "hex_square": hex_square,
+    }
+
+    with open(
+        output_path + "/pseudovisium/" + project_name + "/arguments.json", "w"
+    ) as f:
+        json.dump(arguments, f)
+
+    end = time.time()
+    print(f"Time taken: {end - start} seconds\n")
+    #except Exception as e:
+    #    print("Error: Unable to generate Pseudovisium output.")
+    #    print(f"Error details: {str(e)}")
 
 
 
 
 #also adding an option to run binning just on anndata objects
 
-def spatial_binning_adata(adata, bin_size, bin_type = 'hex'):
+def adata_to_adata(adata, bin_size, bin_type = 'hex'):
     """
     Performs spatial binning (hexagonal or square) on an AnnData object based on spatial coordinates.
 
@@ -1489,7 +1642,7 @@ def spatial_binning_adata(adata, bin_size, bin_type = 'hex'):
 
     # Create new observation data
     new_obs = pd.DataFrame(index=[f"{bin_type}_bin_{i}" for i in range(len(grouped))])
-    new_obs["n_cells"] = grouped.apply(len)
+    new_obs["n_cells"] = grouped.apply(len).values
 
     # Aggregate expression data
     new_X = scipy.sparse.lil_matrix((len(grouped), adata.n_vars))
@@ -1512,6 +1665,94 @@ def spatial_binning_adata(adata, bin_size, bin_type = 'hex'):
     return new_adata
 
 
+def spatialdata_to_spatialdata(sdata, table_id, new_table_id=None, new_shapes_id=None, bin_size=50, bin_type="hex"):
+    """
+    Converts spatial data from a SpatialData object to a new SpatialData object with spatially binned data,
+    creating both a binned table and corresponding spatial tessellation.
+
+    Args:
+        sdata (SpatialData): Input SpatialData object containing the spatial data to be binned.
+        table_id (str): Identifier for the table in sdata to be binned.
+        new_table_id (str, optional): Identifier for the new binned table. If None, defaults to 
+            "{table_id}_PV_bins_{bin_size}_{bin_type}".
+        new_shapes_id (str, optional): Identifier for the new tessellation shapes. If None, defaults to
+            "{table_id}_tessellation_{bin_size}_{bin_type}".
+        bin_size (float, default=50): Size parameter for binning:
+            - For hexagonal bins: the apothem (distance from center to middle of edge)
+            - For square bins: length of a side
+        bin_type (str, default="hex"): Type of binning tessellation to create:
+            - "hex": hexagonal binning
+            - "square": square binning
+
+    Returns:
+        SpatialData: Modified input SpatialData object containing:
+            - New binned table with identifier new_table_id
+            - New tessellation shapes with identifier new_shapes_id
+            - Original data remains unchanged
+
+    Notes:
+        - The function modifies the input SpatialData object in-place by adding new components
+        - Binned table includes spatial coordinates in obsm["spatial"]
+        - Generated tessellation is stored as a ShapesModel in the shapes component
+        - Location IDs and region information are automatically generated and stored in the table
+    """
+    
+
+
+    if new_table_id is None:
+        new_table_id=table_id+"_PV_bins_"+str(bin_size)+"_" + bin_type
+    if new_shapes_id is None:
+        new_shapes_id=table_id+"_tessellation_"+str(bin_size)+"_" + bin_type
+
+    #if a float introduced a . to these names, turn it into a _
+    new_table_id = new_table_id.replace(".","_")
+    new_shapes_id = new_shapes_id.replace(".","_")
+
+    #extract anndata_table
+    extracted_table = sdata.tables["square_016um"].copy()
+
+
+    print("Performing spatial binning...\n")
+    binned_table = adata_to_adata(extracted_table, bin_size=bin_size, bin_type=bin_type)
+    print("Spatial binning complete.\n Adding new table and tessellation to sdata object...\n")
+    coordinates = binned_table.obsm["spatial"]
+
+    def create_tessellation(cx, cy, bin_size, bin_type):
+        if bin_type == "hex":
+            radius = np.sqrt(3/2) * bin_size
+            # Generate the six points of the hexagon
+            angles = np.linspace(0, 2 * np.pi, 7)  # 0 to 360 degrees (2π radians)
+            #add 30 degrees to the angle
+            angles = angles + np.pi/6
+            x_hex = cx + radius * np.cos(angles)
+            y_hex = cy + radius * np.sin(angles)
+            return Polygon(zip(x_hex, y_hex))
+        if bin_type == "square":
+            return Polygon([(cx - bin_size/2, cy - bin_size/2),
+                            (cx + bin_size/2, cy - bin_size/2),
+                            (cx + bin_size/2, cy + bin_size/2),
+                            (cx - bin_size/2, cy + bin_size/2),
+                            (cx - bin_size/2, cy - bin_size/2)])
+
+    # Create hexagon polygons at each coordinate and store in a list
+    tessellation = [create_tessellation(x, y, bin_size, bin_type) for x, y in coordinates]
+    # Create the GeoDataFrame
+    gdf = gpd.GeoDataFrame(pd.DataFrame({'geometry': tessellation}), geometry='geometry')
+    # Set location_id as the named index
+    gdf.index.name = 'location_id'
+
+    #add columns: location_id, region_id
+    binned_table.uns["spatialdata_attrs"]["region_key"] = "region"
+    binned_table.uns["spatialdata_attrs"]["instance_key"] = "location_id"
+    binned_table.uns["spatialdata_attrs"]["region"] = new_shapes_id
+    binned_table.obs["location_id"] = np.arange(binned_table.shape[0])
+    binned_table.obs["region"] = np.array([new_shapes_id]*binned_table.shape[0])
+
+    from spatialdata.models import ShapesModel, TableModel
+    sdata.shapes[new_shapes_id] = ShapesModel.parse(gdf)
+    sdata.tables[new_table_id] = TableModel.parse(binned_table)
+    print("New table and tessellation added to sdata object.\n Done.\n")
+
 
 def main():
     """
@@ -1529,7 +1770,7 @@ def main():
         "--output_path", "-o", type=str, help="Output path", default="."
     )
     parser.add_argument(
-        "--hexagon_size", "-hs", type=float, help="Hexagon size", default=50.0
+        "--bin_size", "-bs", type=float, help="Bin size", default=50.0
     )
     parser.add_argument(
         "--img_file_path", "-i", type=str, help="Image file path", default=None
@@ -1599,7 +1840,7 @@ def main():
         "--smoothing", "-s", type=float, help="Smoothing factor", default=0.0
     )
     parser.add_argument(
-        "--visium_hd_folder", "-vhf", type=str, help="Visium HD folder", default=None
+        "--folder_or_object", "-foo", type=str, help="Folder or Object", default=None
     )
     parser.add_argument(
         "--mw",
@@ -1670,12 +1911,22 @@ def main():
         default="hex",
     )
 
+    parser.add_argument(
+        "--sd_table_id",
+        "-sid",
+        type=str,
+        help="Table ID in SpatialData object",
+        default=None
+    )
+
 
     args = parser.parse_args()
 
     if args.help:
         print(
-            "This is Pseudovisium, a software that compresses imaging-based spatial transcriptomics files using hexagonal binning of the data."
+            """\nThis is Pseudovisium, a software that compresses imaging-based spatial transcriptomics files using hexagonal binning of the data.
+            Please cite: Kövér B, Vigilante A. https://www.biorxiv.org/content/10.1101/2024.07.23.604776v1\n
+            """
         )
         parser.print_help()
         sys.exit(0)
@@ -1684,7 +1935,7 @@ def main():
         csv_file=args.csv_file,
         img_file_path=args.img_file_path,
         shift_to_positive=args.shift_to_positive,
-        hexagon_size=args.hexagon_size,
+        bin_size=args.bin_size,
         output_path=args.output_path,
         batch_size=args.batch_size,
         alignment_matrix_file=args.alignment_matrix_file,
@@ -1707,12 +1958,14 @@ def main():
         h5_x_colname=args.h5_x_colname,
         h5_y_colname=args.h5_y_colname,
         coord_to_um_conversion=args.coord_to_um_conversion,
-        visium_hd_folder=args.visium_hd_folder,
+        folder_or_object=args.folder_or_object,
         spot_diameter=args.spot_diameter,
-        hex_square=args.hex_square
+        hex_square=args.hex_square,
+        sd_table_id=args.sd_table_id
+
     )
 
-    print("Pseudovisium output generated successfully.")
+    print("Pseudovisium output generated successfully.\n")
 
 
 if __name__ == "__main__":

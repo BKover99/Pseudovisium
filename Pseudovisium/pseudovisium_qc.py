@@ -2668,7 +2668,7 @@ def main():
     parser.add_argument(
         "--neg_ctrl_string",
         "-nc",
-        default="neg",
+        default="control|ctrl|code|Code|assign|Assign|pos|NegPrb|neg|Ctrl|blank|Control|Blank|BLANK",
         help="String to identify negative control probes",
     )
 
