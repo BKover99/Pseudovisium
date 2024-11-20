@@ -133,13 +133,15 @@ adata_new = pvg.spatial_binning_adata(adata_fullres,25,"hex")
 
 [Performing spatial GSEA with spatialAUC](https://github.com/BKover99/spatialAUC)
 
-## Goals
+## Goals tracker
 - [x] Starting rotation project with working prototype - Apr 7, 2024
 - [x] Releasing the repo with minimal working capabilities - Apr 20, 2024
 - [x] Adding supporting Colab notebooks - Jun 20, 2024
 - [x] Releasing all data used in this work on OneDrive - Jun 20, 2024
 - [x] Tidying up all code - Jun 20, 2024
 - [x] Posting pre-print to Biorxiv - July 24, 2024  https://www.biorxiv.org/content/10.1101/2024.07.23.604776v1.full
+- [x] Peer-review
+- [ ] Revisions - currently ongoing, expected to be done soon.
 - [ ] Publication of peer-reviewed research article
 
 ## Citation
