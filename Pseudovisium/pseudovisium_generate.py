@@ -1401,292 +1401,291 @@ def generate_pv(
     )
     print("#####################\n")
 
+    #try: commented out for troubleshooting
+
+    start = time.time()
+
+    # to path, create a folder called pseudovisium
+    folderpath = output_path + "/pseudovisium/" + project_name
+
     try:
+        print(
+            "Creating pseudovisium folder in output path:{0}\n".format(folderpath)
+        )
 
-        start = time.time()
+        if os.path.exists(output_path + "/pseudovisium/"):
+            print(
+                "Using already existing folder: {0}\n".format(
+                    output_path + "/pseudovisium/"
+                )
+            )
+        else:
+            os.mkdir(output_path + "/pseudovisium/")
 
-        # to path, create a folder called pseudovisium
-        folderpath = output_path + "/pseudovisium/" + project_name
-
-        # if folderpath exists, delete it
         if os.path.exists(folderpath):
             shutil.rmtree(folderpath)
 
         os.mkdir(folderpath)
-        try:
-            print(
-                "Creating pseudovisium folder in output path:{0}\n".format(folderpath)
-            )
 
-            if os.path.exists(folderpath + "/pseudovisium/"):
-                print(
-                    "Using already existing folder: {0}\n".format(
-                        folderpath + "/pseudovisium/"
-                    )
+        if os.path.exists(folderpath + "/spatial/"):
+            print(
+                "Using already existing folder: {0}\n".format(
+                    folderpath + "/spatial/"
                 )
-            else:
-                os.mkdir(folderpath + "/pseudovisium/")
-            if os.path.exists(folderpath + "/spatial/"):
-                print(
-                    "Using already existing folder: {0}\n".format(
-                        folderpath + "/spatial/"
-                    )
-                )
-            else:
-                os.mkdir(folderpath + "/spatial/")
-        except:
-            pass
-
-        # check if folder_or_object is of type AnnData. If so, change technology to AnnData
-        if isinstance(folder_or_object, ad.AnnData):
-            technology = "AnnData"
-        # if SpatialData object, change technology to SpatialData
-        if isinstance(folder_or_object, sd.SpatialData):
-            technology = "SpatialData"
-        # if folderpath ends with .zarr or .Zarr, change technology to Zarr
-        if folderpath.endswith(".zarr") or folderpath.endswith(".Zarr"):
-            technology = "Zarr"
-
-        if (
-            (technology == "Visium_HD")
-            or (technology == "VisiumHD")
-            or (technology == "Visium HD")
-        ):
-            print(
-                "Technology is Visium_HD. Generating transcripts.parquet file from Visium HD files.\n"
             )
-            # Automatically calculating image_pixels_per_um from the scalefactors_json.json file
-            image_pixels_per_um = anndata_to_transcripts_pq(
-                folder_or_object, folder_or_object + "/transcripts.parquet", technology
-            )
-            csv_file = folderpath + "/transcripts.parquet"
-
-        if technology == "Curio":
-            print(
-                "Technology is Curio. Generating transcripts.parquet file from Curio files.\n"
-            )
-            smoothing_scale = anndata_to_transcripts_pq(
-                folder_or_object,
-                folderpath + "/transcripts.parquet",
-                technology,
-                x_col=h5_x_colname,
-                y_col=h5_y_colname,
-            )
-            csv_file = folderpath + "/transcripts.parquet"
-            print("Smoothing defaults to : {0}".format(smoothing_scale / 4))
-            smoothing = smoothing_scale / 4
-
-        if technology == "Zarr":
-            print(
-                "Technology is unclear, but you passed a Zarr file. Generating transcripts.parquet file from Zarr files.\n"
-            )
-            anndata_to_transcripts_pq(
-                folder_or_object,
-                folderpath + "/transcripts.parquet",
-                technology,
-                sd_table_id=sd_table_id,
-            )
-            csv_file = folderpath + "/transcripts.parquet"
-
-        if (technology == "SpatialData") or (technology == "AnnData"):
-
-            print(
-                "Technology is unclear, but you passed a SpatialData/AnnData object. Generating transcripts.parquet file.\n"
-            )
-            anndata_to_transcripts_pq(
-                folder_or_object,
-                folderpath + "/transcripts.parquet",
-                technology,
-                sd_table_id=sd_table_id,
-            )
-            csv_file = folderpath + "/transcripts.parquet"
-
-        if technology == "Xenium":
-            print("Technology is Xenium. Going forward with default column names.\n")
-            x_colname = "x_location"
-            y_colname = "y_location"
-            feature_colname = "feature_name"
-            cell_id_colname = "cell_id"
-            quality_colname = "qv"
-            count_colname = "NA"
-            # coord_to_um_conversion = 1
-
-        elif technology == "Vizgen":
-            print("Technology is Vizgen. Going forward with default column names.\n")
-            x_colname = "global_x"
-            y_colname = "global_y"
-            feature_colname = "gene"
-            # cell_id_colname = "barcode_id"
-            count_colname = "NA"
-            # coord_to_um_conversion = 1
-
-        elif (technology == "Nanostring") or (technology == "CosMx"):
-            print(
-                "Technology is Nanostring. Going forward with default column names.\n"
-            )
-            x_colname = "x_global_px"
-            y_colname = "y_global_px"
-            feature_colname = "target"
-            cell_id_colname = "cell"
-            count_colname = "NA"
-            if coord_to_um_conversion == 1:
-                print(
-                    "Knowing CosMx, we are setting coord_to_um_conversion to 0.12028, which is likely better than the default 1.\n"
-                )
-                coord_to_um_conversion = 0.12028
-            # see ref https://smi-public.objects.liquidweb.services/cosmx-wtx/Pancreas-CosMx-ReadMe.html
-            # https://nanostring.com/wp-content/uploads/2023/09/SMI-ReadMe-BETA_humanBrainRelease.html
-            # Whereas old smi output seems to be 0.18
-            # https://nanostring-public-share.s3.us-west-2.amazonaws.com/SMI-Compressed/SMI-ReadMe.html
-
-        elif (
-            (technology == "Visium_HD")
-            or (technology == "VisiumHD")
-            or (technology == "Visium HD")
-        ):
-            print(
-                "Technology is Visium_HD. Going forward with pseudovisium processed colnames.\n"
-            )
-            x_colname = "x"
-            y_colname = "y"
-            feature_colname = "gene"
-            cell_id_colname = "barcode"
-            count_colname = "count"
-            # coord_to_um_conversion = 1
-
-        elif technology == "seqFISH":
-            print("Technology is seqFISH. Going forward with default column names.\n")
-            x_colname = "x"
-            y_colname = "y"
-            feature_colname = "name"
-            cell_id_colname = "cell"
-            count_colname = "NA"
-            # coord_to_um_conversion = 1
-
-        elif technology == "Curio":
-            print("Technology is Curio. Going forward with default column names.\n")
-            x_colname = "x"
-            y_colname = "y"
-            feature_colname = "gene"
-            cell_id_colname = "barcode"
-            count_colname = "count"
-            # coord_to_um_conversion = 1
-
-        elif (
-            (technology == "Zarr")
-            or technology == ("SpatialData")
-            or (technology == "AnnData")
-        ):
-            print(
-                "Technology is Zarr/SpatialData/AnnData. Going forward with default column names.\n"
-            )
-            x_colname = "x"
-            y_colname = "y"
-            feature_colname = "gene"
-            cell_id_colname = "barcode"
-            count_colname = "count"
-
         else:
-            print("Technology not recognized. Going forward with set column names.\n")
+            os.mkdir(folderpath + "/spatial/")
+    except:
+        pass
 
-        (
-            hexagon_counts,
-            unique_hexagons,
-            unique_features,
-            hexagon_cell_counts,
-            hexagon_quality,
-            probe_quality,
-        ) = process_csv_file(
-            csv_file,
-            bin_size,
-            batch_size,
-            feature_colname,
-            x_colname,
-            y_colname,
-            cell_id_colname,
-            quality_colname=quality_colname,
-            max_workers=max_workers,
-            quality_filter=quality_filter,
-            count_colname=count_colname,
-            smoothing=smoothing,
-            quality_per_hexagon=quality_per_hexagon,
-            quality_per_probe=quality_per_probe,
-            coord_to_um_conversion=coord_to_um_conversion,
-            spot_diameter=spot_diameter,
-            hex_square=hex_square,
+
+    # check if folder_or_object is of type AnnData. If so, change technology to AnnData
+    if isinstance(folder_or_object, ad.AnnData):
+        technology = "AnnData"
+    # if SpatialData object, change technology to SpatialData
+    if isinstance(folder_or_object, sd.SpatialData):
+        technology = "SpatialData"
+    # if folderpath ends with .zarr or .Zarr, change technology to Zarr
+    if folderpath.endswith(".zarr") or folderpath.endswith(".Zarr"):
+        technology = "Zarr"
+
+    if (
+        (technology == "Visium_HD")
+        or (technology == "VisiumHD")
+        or (technology == "Visium HD")
+    ):
+        print(
+            "Technology is Visium_HD. Generating transcripts.parquet file from Visium HD files.\n"
         )
-
-        # Create Pseudovisium output
-        create_pseudovisium(
-            output_path=output_path,
-            hexagon_counts=hexagon_counts,
-            unique_hexagons=unique_hexagons,
-            unique_features=unique_features,
-            hexagon_cell_counts=hexagon_cell_counts,
-            hexagon_quality=hexagon_quality,
-            probe_quality=probe_quality,
-            cell_id_colname=cell_id_colname,
-            img_file_path=img_file_path,
-            shift_to_positive=shift_to_positive,
-            project_name=project_name,
-            alignment_matrix_file=alignment_matrix_file,
-            image_pixels_per_um=image_pixels_per_um,
-            bin_size=bin_size,
-            tissue_hires_scalef=tissue_hires_scalef,
-            pixel_to_micron=pixel_to_micron,
-            max_workers=max_workers,
-            spot_diameter=spot_diameter,
+        # Automatically calculating image_pixels_per_um from the scalefactors_json.json file
+        image_pixels_per_um = anndata_to_transcripts_pq(
+            folder_or_object, folder_or_object + "/transcripts.parquet", technology
         )
+        csv_file = folderpath + "/transcripts.parquet"
 
-        # save all arguments in a json file called arguments.json
-        print("Creating arguments.json file in output path.\n")
-        if type(folder_or_object) != str:
-            folder_or_object_entry = str(type(folder_or_object))
-        else:
-            folder_or_object_entry = folder_or_object
+    if technology == "Curio":
+        print(
+            "Technology is Curio. Generating transcripts.parquet file from Curio files.\n"
+        )
+        smoothing_scale = anndata_to_transcripts_pq(
+            folder_or_object,
+            folderpath + "/transcripts.parquet",
+            technology,
+            x_col=h5_x_colname,
+            y_col=h5_y_colname,
+        )
+        csv_file = folderpath + "/transcripts.parquet"
+        print("Smoothing defaults to : {0}".format(smoothing_scale / 4))
+        smoothing = smoothing_scale / 4
 
-        arguments = {
-            "csv_file": csv_file,
-            "img_file_path": img_file_path,
-            "bin_size": bin_size,
-            "output_path": output_path,
-            "batch_size": batch_size,
-            "alignment_matrix_file": alignment_matrix_file,
-            "project_name": project_name,
-            "image_pixels_per_um": image_pixels_per_um,
-            "tissue_hires_scalef": tissue_hires_scalef,
-            "technology": technology,
-            "feature_colname": feature_colname,
-            "x_colname": x_colname,
-            "y_colname": y_colname,
-            "cell_id_colname": cell_id_colname,
-            "pixel_to_micron": pixel_to_micron,
-            "quality_colname": quality_colname,
-            "quality_filter": quality_filter,
-            "count_colname": count_colname,
-            "smoothing": smoothing,
-            "quality_per_hexagon": quality_per_hexagon,
-            "quality_per_probe": quality_per_probe,
-            "max_workers": max_workers,
-            "folder_or_object": folder_or_object_entry,  # this is because of course in case it is an object we cannot write it to a json
-            "h5_x_colname": h5_x_colname,
-            "h5_y_colname": h5_y_colname,
-            "coord_to_um_conversion": coord_to_um_conversion,
-            "spot_diameter": spot_diameter,
-            "hex_square": hex_square,
-        }
+    if technology == "Zarr":
+        print(
+            "Technology is unclear, but you passed a Zarr file. Generating transcripts.parquet file from Zarr files.\n"
+        )
+        anndata_to_transcripts_pq(
+            folder_or_object,
+            folderpath + "/transcripts.parquet",
+            technology,
+            sd_table_id=sd_table_id,
+        )
+        csv_file = folderpath + "/transcripts.parquet"
 
-        with open(folderpath + "/arguments.json", "w") as f:
-            json.dump(arguments, f)
+    if (technology == "SpatialData") or (technology == "AnnData"):
 
-        end = time.time()
-        print(f"Time taken: {end - start} seconds\n")
-    except Exception as e:
-        print("Error: Unable to generate Pseudovisium output.")
-        print(f"Error details: {str(e)}")
+        print(
+            "Technology is unclear, but you passed a SpatialData/AnnData object. Generating transcripts.parquet file.\n"
+        )
+        anndata_to_transcripts_pq(
+            folder_or_object,
+            folderpath + "/transcripts.parquet",
+            technology,
+            sd_table_id=sd_table_id,
+        )
+        csv_file = folderpath + "/transcripts.parquet"
 
+    if technology == "Xenium":
+        print("Technology is Xenium. Going forward with default column names.\n")
+        x_colname = "x_location"
+        y_colname = "y_location"
+        feature_colname = "feature_name"
+        cell_id_colname = "cell_id"
+        quality_colname = "qv"
+        count_colname = "NA"
+        # coord_to_um_conversion = 1
 
-# also adding an option to run binning just on anndata objects
+    elif technology == "Vizgen":
+        print("Technology is Vizgen. Going forward with default column names.\n")
+        x_colname = "global_x"
+        y_colname = "global_y"
+        feature_colname = "gene"
+        # cell_id_colname = "barcode_id"
+        count_colname = "NA"
+        # coord_to_um_conversion = 1
+
+    elif (technology == "Nanostring") or (technology == "CosMx"):
+        print(
+            "Technology is Nanostring. Going forward with default column names.\n"
+        )
+        x_colname = "x_global_px"
+        y_colname = "y_global_px"
+        feature_colname = "target"
+        cell_id_colname = "cell"
+        count_colname = "NA"
+        if coord_to_um_conversion == 1:
+            print(
+                "Knowing CosMx, we are setting coord_to_um_conversion to 0.12028, which is likely better than the default 1.\n"
+            )
+            coord_to_um_conversion = 0.12028
+        # see ref https://smi-public.objects.liquidweb.services/cosmx-wtx/Pancreas-CosMx-ReadMe.html
+        # https://nanostring.com/wp-content/uploads/2023/09/SMI-ReadMe-BETA_humanBrainRelease.html
+        # Whereas old smi output seems to be 0.18
+        # https://nanostring-public-share.s3.us-west-2.amazonaws.com/SMI-Compressed/SMI-ReadMe.html
+
+    elif (
+        (technology == "Visium_HD")
+        or (technology == "VisiumHD")
+        or (technology == "Visium HD")
+    ):
+        print(
+            "Technology is Visium_HD. Going forward with pseudovisium processed colnames.\n"
+        )
+        x_colname = "x"
+        y_colname = "y"
+        feature_colname = "gene"
+        cell_id_colname = "barcode"
+        count_colname = "count"
+        # coord_to_um_conversion = 1
+
+    elif technology == "seqFISH":
+        print("Technology is seqFISH. Going forward with default column names.\n")
+        x_colname = "x"
+        y_colname = "y"
+        feature_colname = "name"
+        cell_id_colname = "cell"
+        count_colname = "NA"
+        # coord_to_um_conversion = 1
+
+    elif technology == "Curio":
+        print("Technology is Curio. Going forward with default column names.\n")
+        x_colname = "x"
+        y_colname = "y"
+        feature_colname = "gene"
+        cell_id_colname = "barcode"
+        count_colname = "count"
+        # coord_to_um_conversion = 1
+
+    elif (
+        (technology == "Zarr")
+        or technology == ("SpatialData")
+        or (technology == "AnnData")
+    ):
+        print(
+            "Technology is Zarr/SpatialData/AnnData. Going forward with default column names.\n"
+        )
+        x_colname = "x"
+        y_colname = "y"
+        feature_colname = "gene"
+        cell_id_colname = "barcode"
+        count_colname = "count"
+
+    else:
+        print("Technology not recognized. Going forward with set column names.\n")
+
+    (
+        hexagon_counts,
+        unique_hexagons,
+        unique_features,
+        hexagon_cell_counts,
+        hexagon_quality,
+        probe_quality,
+    ) = process_csv_file(
+        csv_file,
+        bin_size,
+        batch_size,
+        feature_colname,
+        x_colname,
+        y_colname,
+        cell_id_colname,
+        quality_colname=quality_colname,
+        max_workers=max_workers,
+        quality_filter=quality_filter,
+        count_colname=count_colname,
+        smoothing=smoothing,
+        quality_per_hexagon=quality_per_hexagon,
+        quality_per_probe=quality_per_probe,
+        coord_to_um_conversion=coord_to_um_conversion,
+        spot_diameter=spot_diameter,
+        hex_square=hex_square,
+    )
+
+    # Create Pseudovisium output
+    create_pseudovisium(
+        output_path=output_path,
+        hexagon_counts=hexagon_counts,
+        unique_hexagons=unique_hexagons,
+        unique_features=unique_features,
+        hexagon_cell_counts=hexagon_cell_counts,
+        hexagon_quality=hexagon_quality,
+        probe_quality=probe_quality,
+        cell_id_colname=cell_id_colname,
+        img_file_path=img_file_path,
+        shift_to_positive=shift_to_positive,
+        project_name=project_name,
+        alignment_matrix_file=alignment_matrix_file,
+        image_pixels_per_um=image_pixels_per_um,
+        bin_size=bin_size,
+        tissue_hires_scalef=tissue_hires_scalef,
+        pixel_to_micron=pixel_to_micron,
+        max_workers=max_workers,
+        spot_diameter=spot_diameter,
+    )
+
+    # save all arguments in a json file called arguments.json
+    print("Creating arguments.json file in output path.\n")
+    if type(folder_or_object) != str:
+        folder_or_object_entry = str(type(folder_or_object))
+    else:
+        folder_or_object_entry = folder_or_object
+
+    arguments = {
+        "csv_file": csv_file,
+        "img_file_path": img_file_path,
+        "bin_size": bin_size,
+        "output_path": output_path,
+        "batch_size": batch_size,
+        "alignment_matrix_file": alignment_matrix_file,
+        "project_name": project_name,
+        "image_pixels_per_um": image_pixels_per_um,
+        "tissue_hires_scalef": tissue_hires_scalef,
+        "technology": technology,
+        "feature_colname": feature_colname,
+        "x_colname": x_colname,
+        "y_colname": y_colname,
+        "cell_id_colname": cell_id_colname,
+        "pixel_to_micron": pixel_to_micron,
+        "quality_colname": quality_colname,
+        "quality_filter": quality_filter,
+        "count_colname": count_colname,
+        "smoothing": smoothing,
+        "quality_per_hexagon": quality_per_hexagon,
+        "quality_per_probe": quality_per_probe,
+        "max_workers": max_workers,
+        "folder_or_object": folder_or_object_entry,  # this is because of course in case it is an object we cannot write it to a json
+        "h5_x_colname": h5_x_colname,
+        "h5_y_colname": h5_y_colname,
+        "coord_to_um_conversion": coord_to_um_conversion,
+        "spot_diameter": spot_diameter,
+        "hex_square": hex_square,
+    }
+
+    with open(folderpath + "/arguments.json", "w") as f:
+        json.dump(arguments, f)
+
+    end = time.time()
+    print(f"Time taken: {end - start} seconds\n")
+    #except Exception as e:
+    #    print("Error: Unable to generate Pseudovisium output.")
+    #    print(f"Error details: {str(e)}")
 
 
 def adata_to_adata(adata, bin_size, bin_type="hex"):
