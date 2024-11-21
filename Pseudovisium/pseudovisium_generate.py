@@ -22,6 +22,8 @@ from pathlib import Path
 import subprocess
 import datetime
 from numba import jit
+import spatialdata as sd
+import anndata as ad
 
 
 @jit(nopython=True)
@@ -38,7 +40,7 @@ def closest_hex(x, y, bin_size, spot_diameter=None):
 
     Returns:
         tuple or str: The closest hexagon centroid coordinates (x, y) rounded to the nearest integer.
-                     Returns "-1" as a string if spot_diameter is provided and the distance to 
+                     Returns "-1" as a string if spot_diameter is provided and the distance to
                      the closest hexagon centroid is greater than half the spot diameter.
     """
     spot = spot_diameter is not None
@@ -117,7 +119,7 @@ def closest_hex(x, y, bin_size, spot_diameter=None):
 def closest_square(x, y, square_size):
     """
     Calculates the closest square centroid to the given (x, y) coordinates.
-    
+
     Args:
         x (float): The x-coordinate of the point.
         y (float): The y-coordinate of the point.
@@ -126,7 +128,7 @@ def closest_square(x, y, square_size):
     Returns:
         tuple: The closest square centroid coordinates (x, y) rounded to the nearest integer.
     """
-    
+
     x_ = x // square_size
     y_ = y // square_size
     return (round((x_ + 0.5) * square_size, 0), round((y_ + 0.5) * square_size, 0))
@@ -202,14 +204,14 @@ def process_batch(
     # based on x and y column, apply closest_hex. If spot_diameter is set, then use that to recapitulate raw visium
     if hex_square == "hex":
         hexagons = np.array(
-            [ 
+            [
                 str(closest_hex(x, y, bin_size, spot_diameter))
                 for x, y in zip(df_batch[x_colname], df_batch[y_colname])
             ]
         )
     elif hex_square == "square":
         hexagons = np.array(
-            [ 
+            [
                 str(closest_square(x, y, bin_size))
                 for x, y in zip(df_batch[x_colname], df_batch[y_colname])
             ]
@@ -350,8 +352,7 @@ def process_csv_file(
     quality_per_probe=False,
     coord_to_um_conversion=1,
     spot_diameter=None,
-    hex_square="hex"
-
+    hex_square="hex",
 ):
     """
     Processes spatial transcriptomics data to calculate binned counts using parallel processing.
@@ -439,7 +440,7 @@ def process_csv_file(
                     quality_per_probe,
                     coord_to_um_conversion,
                     spot_diameter,
-                    hex_square
+                    hex_square,
                 )
                 for batch in parquet_file.iter_batches(batch_size=batch_size)
             ]
@@ -471,7 +472,7 @@ def process_csv_file(
                             quality_per_probe,
                             coord_to_um_conversion,
                             spot_diameter,
-                            hex_square
+                            hex_square,
                         )
                     )
 
@@ -651,8 +652,6 @@ def create_pseudovisium(
         - Quality metrics (if calculated)
     """
 
-
-
     # to path, create a folder called pseudovisium
     folderpath = output_path + "/pseudovisium/" + project_name
 
@@ -661,7 +660,6 @@ def create_pseudovisium(
         print(
             "Visium-like array structure is being built rather than hexagonal tesselation!!!\n"
         )
-
 
     ############################################## ##############################################
     # see https://kb.10xgenomics.com/hc/en-us/articles/11636252598925-What-are-the-Xenium-image-scale-factors
@@ -712,9 +710,9 @@ def create_pseudovisium(
             barcodes,
             contain,
             y_,  # ideally in microns
-            x_, # ideally in microns
-            [int(image_pixels_per_um * a) for a in y], # in pixel units
-            [int(image_pixels_per_um * a) for a in x], # in pixel units
+            x_,  # ideally in microns
+            [int(image_pixels_per_um * a) for a in y],  # in pixel units
+            [int(image_pixels_per_um * a) for a in x],  # in pixel units
         ),
         columns=[
             "barcode",
@@ -950,7 +948,9 @@ def create_pseudovisium(
     else:
         # output a blank image
         # Create a white background image with tissue positions
-        print("No image file provided. Drawing tissue positions on a white background.\n")
+        print(
+            "No image file provided. Drawing tissue positions on a white background.\n"
+        )
 
         # Extract pixel coordinates from hexagon_table
         pixel_coords = np.array(
@@ -1025,16 +1025,20 @@ def read_files(folder, technology):
         adata = sc.read_h5ad(folder + h5ad_file)
         return adata
     elif technology == "Zarr":
-        import spatialdata as sd
+
         sdata = sd.read_zarr(folder)
-        
+
         return sdata
 
 
-
-
 def asdata_to_df(
-    asdata, technology, tissue_pos=None, scalefactors=None, x_col=None, y_col=None,sd_table_id=None
+    asdata,
+    technology,
+    tissue_pos=None,
+    scalefactors=None,
+    x_col=None,
+    y_col=None,
+    sd_table_id=None,
 ):
     """
     Converts various spatial data objects to a standardized DataFrame format.
@@ -1137,14 +1141,13 @@ def asdata_to_df(
         # join with tissue_pos
         df = pd.merge(df, obs, on="barcode")
         return df, scale
-    
+
     elif technology == "SpatialData":
 
         adata = asdata.tables[sd_table_id].copy()
         adata.obs["x"] = adata.obsm["spatial"][:, 0]
         adata.obs["y"] = adata.obsm["spatial"][:, 1]
 
-
         # keep only the columns x,y
         obs = adata.obs[["x", "y"]]
 
@@ -1167,14 +1170,13 @@ def asdata_to_df(
         df = pd.merge(df, obs, on="barcode")
 
         return df
-    
+
     elif technology == "AnnData":
 
         adata = asdata.copy()
         adata.obs["x"] = adata.obsm["spatial"][:, 0]
         adata.obs["y"] = adata.obsm["spatial"][:, 1]
 
-
         # keep only the columns x,y
         obs = adata.obs[["x", "y"]]
 
@@ -1197,18 +1199,16 @@ def asdata_to_df(
         df = pd.merge(df, obs, on="barcode")
 
         return df
-    
-        
-        
 
 
-
-def anndata_to_transcripts_pq(folder_or_object, output, technology, x_col=None, y_col=None,sd_table_id=None):
+def anndata_to_transcripts_pq(
+    folder_or_object, output, technology, x_col=None, y_col=None, sd_table_id=None
+):
     """
     Converts various spatial data formats to a standardized Parquet file.
 
     Args:
-        folder_or_object (Union[str, anndata.AnnData, spatialdata.SpatialData]): 
+        folder_or_object (Union[str, anndata.AnnData, spatialdata.SpatialData]):
             Input data source - either a path to data folder or a data object.
         output (str): Path where the output Parquet file will be saved.
         technology (str): Technology platform identifier:
@@ -1222,7 +1222,7 @@ def anndata_to_transcripts_pq(folder_or_object, output, technology, x_col=None, 
         sd_table_id (str, optional): Table identifier in SpatialData object.
 
     Returns:
-        Optional[float]: 
+        Optional[float]:
             - For Visium HD: Image resolution in pixels per micron
             - For Curio: Minimal distance between points
             - For others: None
@@ -1258,23 +1258,28 @@ def anndata_to_transcripts_pq(folder_or_object, output, technology, x_col=None, 
         )
         df.to_parquet(output, index=False)
         return scale
-    
+
     elif technology == "Zarr":
         asdata = read_files(folder_or_object, technology)
-        df = asdata_to_df(asdata=asdata, technology="SpatialData",sd_table_id=sd_table_id)
+        df = asdata_to_df(
+            asdata=asdata, technology="SpatialData", sd_table_id=sd_table_id
+        )
         df.to_parquet(output, index=False)
         return None
-    
+
     elif technology == "SpatialData":
-        df = asdata_to_df(asdata=folder_or_object, technology=technology,sd_table_id=sd_table_id)
+        df = asdata_to_df(
+            asdata=folder_or_object, technology=technology, sd_table_id=sd_table_id
+        )
         df.to_parquet(output, index=False)
         return None
-    
+
     elif technology == "AnnData":
-        df = asdata_to_df(asdata=folder_or_object, technology=technology,sd_table_id=sd_table_id)
+        df = asdata_to_df(
+            asdata=folder_or_object, technology=technology, sd_table_id=sd_table_id
+        )
         df.to_parquet(output, index=False)
         return None
-    
 
 
 ######### Main function to generate pseudovisium output ############################################################################################################
@@ -1390,39 +1395,57 @@ def generate_pv(
         print("#####################\n")
     print("#####################\n")
     print(
-            """This is Pseudovisium, a software that compresses imaging-based spatial transcriptomics files using hexagonal binning of the data.
+        """This is Pseudovisium, a software that compresses imaging-based spatial transcriptomics files using hexagonal binning of the data.
             Please cite: Kövér B, Vigilante A. https://www.biorxiv.org/content/10.1101/2024.07.23.604776v1\n
             """
-        )
+    )
     print("#####################\n")
-
 
     try:
 
         start = time.time()
-        
 
         # to path, create a folder called pseudovisium
         folderpath = output_path + "/pseudovisium/" + project_name
-        
+
         # if folderpath exists, delete it
         if os.path.exists(folderpath):
             shutil.rmtree(folderpath)
-        
+
         os.mkdir(folderpath)
         try:
-            print("Creating pseudovisium folder in output path:{0}\n".format(folderpath))
+            print(
+                "Creating pseudovisium folder in output path:{0}\n".format(folderpath)
+            )
 
             if os.path.exists(folderpath + "/pseudovisium/"):
-                print("Using already existing folder: {0}\n".format(folderpath + "/pseudovisium/"))
+                print(
+                    "Using already existing folder: {0}\n".format(
+                        folderpath + "/pseudovisium/"
+                    )
+                )
             else:
                 os.mkdir(folderpath + "/pseudovisium/")
             if os.path.exists(folderpath + "/spatial/"):
-                print("Using already existing folder: {0}\n".format(folderpath + "/spatial/"))
+                print(
+                    "Using already existing folder: {0}\n".format(
+                        folderpath + "/spatial/"
+                    )
+                )
             else:
                 os.mkdir(folderpath + "/spatial/")
         except:
             pass
+
+        # check if folder_or_object is of type AnnData. If so, change technology to AnnData
+        if isinstance(folder_or_object, ad.AnnData):
+            technology = "AnnData"
+        # if SpatialData object, change technology to SpatialData
+        if isinstance(folder_or_object, sd.SpatialData):
+            technology = "SpatialData"
+        # if folderpath ends with .zarr or .Zarr, change technology to Zarr
+        if folderpath.endswith(".zarr") or folderpath.endswith(".Zarr"):
+            technology = "Zarr"
 
         if (
             (technology == "Visium_HD")
@@ -1438,7 +1461,6 @@ def generate_pv(
             )
             csv_file = folderpath + "/transcripts.parquet"
 
-        
         if technology == "Curio":
             print(
                 "Technology is Curio. Generating transcripts.parquet file from Curio files.\n"
@@ -1453,8 +1475,7 @@ def generate_pv(
             csv_file = folderpath + "/transcripts.parquet"
             print("Smoothing defaults to : {0}".format(smoothing_scale / 4))
             smoothing = smoothing_scale / 4
-        
-        
+
         if technology == "Zarr":
             print(
                 "Technology is unclear, but you passed a Zarr file. Generating transcripts.parquet file from Zarr files.\n"
@@ -1462,24 +1483,24 @@ def generate_pv(
             anndata_to_transcripts_pq(
                 folder_or_object,
                 folderpath + "/transcripts.parquet",
-                technology,sd_table_id=sd_table_id
+                technology,
+                sd_table_id=sd_table_id,
             )
             csv_file = folderpath + "/transcripts.parquet"
 
-        
-        if technology == "SpatialData" or technology == "AnnData":
-            
+        if (technology == "SpatialData") or (technology == "AnnData"):
+
             print(
                 "Technology is unclear, but you passed a SpatialData/AnnData object. Generating transcripts.parquet file.\n"
             )
             anndata_to_transcripts_pq(
                 folder_or_object,
                 folderpath + "/transcripts.parquet",
-                technology, sd_table_id=sd_table_id
+                technology,
+                sd_table_id=sd_table_id,
             )
             csv_file = folderpath + "/transcripts.parquet"
 
-        
         if technology == "Xenium":
             print("Technology is Xenium. Going forward with default column names.\n")
             x_colname = "x_location"
@@ -1488,33 +1509,37 @@ def generate_pv(
             cell_id_colname = "cell_id"
             quality_colname = "qv"
             count_colname = "NA"
-            #coord_to_um_conversion = 1
+            # coord_to_um_conversion = 1
 
-        if technology == "Vizgen":
+        elif technology == "Vizgen":
             print("Technology is Vizgen. Going forward with default column names.\n")
             x_colname = "global_x"
             y_colname = "global_y"
             feature_colname = "gene"
             # cell_id_colname = "barcode_id"
             count_colname = "NA"
-            #coord_to_um_conversion = 1
+            # coord_to_um_conversion = 1
 
-        if (technology == "Nanostring") or (technology == "CosMx"):
-            print("Technology is Nanostring. Going forward with default column names.\n")
+        elif (technology == "Nanostring") or (technology == "CosMx"):
+            print(
+                "Technology is Nanostring. Going forward with default column names.\n"
+            )
             x_colname = "x_global_px"
             y_colname = "y_global_px"
             feature_colname = "target"
             cell_id_colname = "cell"
             count_colname = "NA"
             if coord_to_um_conversion == 1:
-                print("Knowing CosMx, we are setting coord_to_um_conversion to 0.12028, which is likely better than the default 1.\n")
+                print(
+                    "Knowing CosMx, we are setting coord_to_um_conversion to 0.12028, which is likely better than the default 1.\n"
+                )
                 coord_to_um_conversion = 0.12028
             # see ref https://smi-public.objects.liquidweb.services/cosmx-wtx/Pancreas-CosMx-ReadMe.html
             # https://nanostring.com/wp-content/uploads/2023/09/SMI-ReadMe-BETA_humanBrainRelease.html
             # Whereas old smi output seems to be 0.18
             # https://nanostring-public-share.s3.us-west-2.amazonaws.com/SMI-Compressed/SMI-ReadMe.html
 
-        if (
+        elif (
             (technology == "Visium_HD")
             or (technology == "VisiumHD")
             or (technology == "Visium HD")
@@ -1527,28 +1552,34 @@ def generate_pv(
             feature_colname = "gene"
             cell_id_colname = "barcode"
             count_colname = "count"
-            #coord_to_um_conversion = 1
+            # coord_to_um_conversion = 1
 
-        if technology == "seqFISH":
+        elif technology == "seqFISH":
             print("Technology is seqFISH. Going forward with default column names.\n")
             x_colname = "x"
             y_colname = "y"
             feature_colname = "name"
             cell_id_colname = "cell"
             count_colname = "NA"
-            #coord_to_um_conversion = 1
+            # coord_to_um_conversion = 1
 
-        if technology == "Curio":
+        elif technology == "Curio":
             print("Technology is Curio. Going forward with default column names.\n")
             x_colname = "x"
             y_colname = "y"
             feature_colname = "gene"
             cell_id_colname = "barcode"
             count_colname = "count"
-            #coord_to_um_conversion = 1
+            # coord_to_um_conversion = 1
 
-        if (technology == "Zarr") or technology == ("SpatialData") or (technology == "AnnData"):
-            print("Technology is Zarr/SpatialData/AnnData. Going forward with default column names.\n")
+        elif (
+            (technology == "Zarr")
+            or technology == ("SpatialData")
+            or (technology == "AnnData")
+        ):
+            print(
+                "Technology is Zarr/SpatialData/AnnData. Going forward with default column names.\n"
+            )
             x_colname = "x"
             y_colname = "y"
             feature_colname = "gene"
@@ -1569,7 +1600,6 @@ def generate_pv(
             csv_file,
             bin_size,
             batch_size,
-            technology,
             feature_colname,
             x_colname,
             y_colname,
@@ -1581,11 +1611,9 @@ def generate_pv(
             smoothing=smoothing,
             quality_per_hexagon=quality_per_hexagon,
             quality_per_probe=quality_per_probe,
-            h5_x_colname=h5_x_colname,
-            h5_y_colname=h5_y_colname,
             coord_to_um_conversion=coord_to_um_conversion,
             spot_diameter=spot_diameter,
-            hex_square=hex_square
+            hex_square=hex_square,
         )
 
         # Create Pseudovisium output
@@ -1613,7 +1641,7 @@ def generate_pv(
         # save all arguments in a json file called arguments.json
         print("Creating arguments.json file in output path.\n")
         if type(folder_or_object) != str:
-            folder_or_object_entry = type(folder_or_object)
+            folder_or_object_entry = str(type(folder_or_object))
         else:
             folder_or_object_entry = folder_or_object
 
@@ -1640,7 +1668,7 @@ def generate_pv(
             "quality_per_hexagon": quality_per_hexagon,
             "quality_per_probe": quality_per_probe,
             "max_workers": max_workers,
-            "folder_or_object": folder_or_object_entry, #this is because of course in case it is an object we cannot write it to a json
+            "folder_or_object": folder_or_object_entry,  # this is because of course in case it is an object we cannot write it to a json
             "h5_x_colname": h5_x_colname,
             "h5_y_colname": h5_y_colname,
             "coord_to_um_conversion": coord_to_um_conversion,
@@ -1648,9 +1676,7 @@ def generate_pv(
             "hex_square": hex_square,
         }
 
-        with open(
-            folderpath + "/arguments.json", "w"
-        ) as f:
+        with open(folderpath + "/arguments.json", "w") as f:
             json.dump(arguments, f)
 
         end = time.time()
@@ -1660,11 +1686,10 @@ def generate_pv(
         print(f"Error details: {str(e)}")
 
 
+# also adding an option to run binning just on anndata objects
 
 
-#also adding an option to run binning just on anndata objects
-
-def adata_to_adata(adata, bin_size, bin_type = 'hex'):
+def adata_to_adata(adata, bin_size, bin_type="hex"):
     """
     Performs spatial binning (hexagonal or square) on an AnnData object based on spatial coordinates.
 
@@ -1689,25 +1714,22 @@ def adata_to_adata(adata, bin_size, bin_type = 'hex'):
     x, y = coords[:, 0], coords[:, 1]
 
     # Choose the appropriate binning function
-    if bin_type == 'hex':
+    if bin_type == "hex":
         bin_func = closest_hex
-    elif bin_type == 'square':
+    elif bin_type == "square":
         bin_func = closest_square
     else:
         raise ValueError("bin_type must be either 'hex' or 'square'")
 
     # Assign cells to bins
-    bins = np.array([
-        bin_func(x_coord, y_coord, bin_size)
-        for x_coord, y_coord in zip(x, y)
-    ])
+    bins = np.array(
+        [bin_func(x_coord, y_coord, bin_size) for x_coord, y_coord in zip(x, y)]
+    )
 
     # Create a DataFrame with bin assignments
-    df = pd.DataFrame({
-        "bin_x": bins[:, 0],
-        "bin_y": bins[:, 1],
-        "original_index": range(adata.n_obs)
-    })
+    df = pd.DataFrame(
+        {"bin_x": bins[:, 0], "bin_y": bins[:, 1], "original_index": range(adata.n_obs)}
+    )
 
     # Group by bin and aggregate
     grouped = df.groupby(["bin_x", "bin_y"])["original_index"].apply(list)
@@ -1737,7 +1759,9 @@ def adata_to_adata(adata, bin_size, bin_type = 'hex'):
     return new_adata
 
 
-def spatialdata_to_spatialdata(sdata, table_id, new_table_id=None, new_shapes_id=None, bin_size=50, bin_type="hex"):
+def spatialdata_to_spatialdata(
+    sdata, table_id, new_table_id=None, new_shapes_id=None, bin_size=50, bin_type="hex"
+):
     """
     Converts spatial data from a SpatialData object to a new SpatialData object with binned data,
     creating both a binned table and corresponding spatial tessellation.
@@ -1763,59 +1787,70 @@ def spatialdata_to_spatialdata(sdata, table_id, new_table_id=None, new_shapes_id
         - Generated tessellation is stored as a ShapesModel
         - Location IDs and region information are automatically generated and stored
     """
-    
 
+    import geopandas as gpd
+    from shapely.geometry import Polygon
 
     if new_table_id is None:
-        new_table_id=table_id+"_PV_bins_"+str(bin_size)+"_" + bin_type
+        new_table_id = table_id + "_PV_bins_" + str(bin_size) + "_" + bin_type
     if new_shapes_id is None:
-        new_shapes_id=table_id+"_tessellation_"+str(bin_size)+"_" + bin_type
+        new_shapes_id = table_id + "_tessellation_" + str(bin_size) + "_" + bin_type
 
-    #if a float introduced a . to these names, turn it into a _
-    new_table_id = new_table_id.replace(".","_")
-    new_shapes_id = new_shapes_id.replace(".","_")
+    # if a float introduced a . to these names, turn it into a _
+    new_table_id = new_table_id.replace(".", "_")
+    new_shapes_id = new_shapes_id.replace(".", "_")
 
-    #extract anndata_table
+    # extract anndata_table
     extracted_table = sdata.tables[table_id].copy()
-
 
     print("Performing spatial binning...\n")
     binned_table = adata_to_adata(extracted_table, bin_size=bin_size, bin_type=bin_type)
-    print("Spatial binning complete.\n Adding new table and tessellation to sdata object...\n")
+    print(
+        "Spatial binning complete.\n Adding new table and tessellation to sdata object...\n"
+    )
     coordinates = binned_table.obsm["spatial"]
 
     def create_tessellation(cx, cy, bin_size, bin_type):
         if bin_type == "hex":
-            radius = np.sqrt(3/2) * bin_size
+            radius = np.sqrt(3 / 2) * bin_size
             # Generate the six points of the hexagon
             angles = np.linspace(0, 2 * np.pi, 7)  # 0 to 360 degrees (2π radians)
-            #add 30 degrees to the angle
-            angles = angles + np.pi/6
+            # add 30 degrees to the angle
+            angles = angles + np.pi / 6
             x_hex = cx + radius * np.cos(angles)
             y_hex = cy + radius * np.sin(angles)
             return Polygon(zip(x_hex, y_hex))
         if bin_type == "square":
-            return Polygon([(cx - bin_size/2, cy - bin_size/2),
-                            (cx + bin_size/2, cy - bin_size/2),
-                            (cx + bin_size/2, cy + bin_size/2),
-                            (cx - bin_size/2, cy + bin_size/2),
-                            (cx - bin_size/2, cy - bin_size/2)])
+            return Polygon(
+                [
+                    (cx - bin_size / 2, cy - bin_size / 2),
+                    (cx + bin_size / 2, cy - bin_size / 2),
+                    (cx + bin_size / 2, cy + bin_size / 2),
+                    (cx - bin_size / 2, cy + bin_size / 2),
+                    (cx - bin_size / 2, cy - bin_size / 2),
+                ]
+            )
 
     # Create hexagon polygons at each coordinate and store in a list
-    tessellation = [create_tessellation(x, y, bin_size, bin_type) for x, y in coordinates]
+    tessellation = [
+        create_tessellation(x, y, bin_size, bin_type) for x, y in coordinates
+    ]
     # Create the GeoDataFrame
-    gdf = gpd.GeoDataFrame(pd.DataFrame({'geometry': tessellation}), geometry='geometry')
+    gdf = gpd.GeoDataFrame(
+        pd.DataFrame({"geometry": tessellation}), geometry="geometry"
+    )
     # Set location_id as the named index
-    gdf.index.name = 'location_id'
+    gdf.index.name = "location_id"
 
-    #add columns: location_id, region_id
+    # add columns: location_id, region_id
     binned_table.uns["spatialdata_attrs"]["region_key"] = "region"
     binned_table.uns["spatialdata_attrs"]["instance_key"] = "location_id"
     binned_table.uns["spatialdata_attrs"]["region"] = new_shapes_id
     binned_table.obs["location_id"] = np.arange(binned_table.shape[0])
-    binned_table.obs["region"] = np.array([new_shapes_id]*binned_table.shape[0])
+    binned_table.obs["region"] = np.array([new_shapes_id] * binned_table.shape[0])
 
     from spatialdata.models import ShapesModel, TableModel
+
     sdata.shapes[new_shapes_id] = ShapesModel.parse(gdf)
     sdata.tables[new_table_id] = TableModel.parse(binned_table)
     print("New table and tessellation added to sdata object.\n Done.\n")
@@ -1836,9 +1871,7 @@ def main():
     parser.add_argument(
         "--output_path", "-o", type=str, help="Output path", default="."
     )
-    parser.add_argument(
-        "--bin_size", "-bs", type=float, help="Bin size", default=50.0
-    )
+    parser.add_argument("--bin_size", "-bs", type=float, help="Bin size", default=50.0)
     parser.add_argument(
         "--img_file_path", "-i", type=str, help="Image file path", default=None
     )
@@ -1966,9 +1999,7 @@ def main():
     )
 
     # make sure to add verbose as well
-    parser.add_argument(
-        "-help", action="store_true", help="Print out help information"
-    )
+    parser.add_argument("-help", action="store_true", help="Print out help information")
 
     parser.add_argument(
         "--hex_square",
@@ -1983,9 +2014,8 @@ def main():
         "-sid",
         type=str,
         help="Table ID in SpatialData object",
-        default=None
+        default=None,
     )
-
 
     args = parser.parse_args()
 
@@ -2028,13 +2058,11 @@ def main():
         folder_or_object=args.folder_or_object,
         spot_diameter=args.spot_diameter,
         hex_square=args.hex_square,
-        sd_table_id=args.sd_table_id
-
+        sd_table_id=args.sd_table_id,
     )
 
-    print("Pseudovisium output generated successfully.\n")
+    print("End.\n")
 
 
 if __name__ == "__main__":
     main()
-

@@ -42,7 +42,7 @@ def generate_qc_report(
     save_plots=False,
     squidpy=False,
     minimal_plots=False,
-    neg_ctrl_string = "control|ctrl|code|Code|assign|Assign|pos|NegPrb|neg|Ctrl|blank|Control|Blank|BLANK"
+    neg_ctrl_string="control|ctrl|code|Code|assign|Assign|pos|NegPrb|neg|Ctrl|blank|Control|Blank|BLANK",
 ):
     """
     Generate a QC report for Pseudovisium output.
@@ -146,8 +146,7 @@ def generate_qc_report(
             probe_quality.columns = ["Probe_ID", "Quality", "Count"]
             probe_quality["Dataset"] = dataset_name
             non_ctrl_probes = probe_quality[
-                ~probe_quality["Probe_ID"].str.contains(neg_ctrl_string
-                )
+                ~probe_quality["Probe_ID"].str.contains(neg_ctrl_string)
             ]
             non_ctrl_probes_q_below_20 = non_ctrl_probes[
                 non_ctrl_probes["Quality"] < 20
@@ -252,20 +251,11 @@ def generate_qc_report(
 
         number_of_probes = len(features)
         number_of_genes = len(
-            features[
-                ~features["Gene_ID"].str.contains(
-                    neg_ctrl_string
-                )
-            ]
+            features[~features["Gene_ID"].str.contains(neg_ctrl_string)]
         )
 
         neg_control_probes = (
-            features[
-                features["Gene_ID"].str.contains(
-                    neg_ctrl_string
-                )
-            ].index
-            + 1
+            features[features["Gene_ID"].str.contains(neg_ctrl_string)].index + 1
         )
         neg_control_counts = np.sum(
             matrix[matrix["Gene_ID"].isin(neg_control_probes)]["Counts"]
@@ -361,9 +351,7 @@ def generate_qc_report(
             )
 
         # dynamic range - sensitivity measures
-        non_ctrl_genes = ~matrix_joined["Gene_ID_y"].str.contains(
-            neg_ctrl_string
-        )
+        non_ctrl_genes = ~matrix_joined["Gene_ID_y"].str.contains(neg_ctrl_string)
         filtered_matrix = matrix_joined[non_ctrl_genes]
 
         # Within gene dynamic range
@@ -395,8 +383,9 @@ def generate_qc_report(
         max_sum = gene_sums.max()
         sum_abundance_range = np.log10(max_sum) - np.log10(min_sum)
 
-        plot_df = not_working_probe_based_on_sum(matrix_joined, neg_ctrl_string,
-                                                 sample_id=dataset_name)
+        plot_df = not_working_probe_based_on_sum(
+            matrix_joined, neg_ctrl_string, sample_id=dataset_name
+        )
         not_working_probes = plot_df[plot_df["Probe category"] == "Bad"].index.values
         n_probes_not_working = len(not_working_probes)
 
@@ -460,8 +449,7 @@ def generate_qc_report(
                 squidpy=squidpy,
             )
             plot_df_morans_i = not_working_probe_based_on_morans_i(
-                replicate_data["morans_i"], neg_ctrl_string,
-                sample_id=dataset_name
+                replicate_data["morans_i"], neg_ctrl_string, sample_id=dataset_name
             )
             not_working_probes = plot_df_morans_i[
                 plot_df_morans_i["Probe category"] == "Bad"
@@ -521,8 +509,7 @@ def generate_qc_report(
             ] = np.round(pct_non_ctrl_probes_q_below_20, 5)
             replicate_data["probe_quality"] = probe_quality
             plot_df_quality_per_probe = not_working_probe_based_on_quality(
-                probe_quality, neg_ctrl_string,
-                sample_id=dataset_name
+                probe_quality, neg_ctrl_string, sample_id=dataset_name
             )
             replicate_data["probe_quality_stripplot_df"] = plot_df_quality_per_probe
 
@@ -1566,14 +1553,10 @@ def not_working_probe_based_on_sum(matrix_joined, neg_ctrl_string, sample_id="Sa
     grouped_matrix = matrix_joined.groupby("Gene_ID_y")["Counts"].sum()
     # where index has control|blank|Control|Blank|BLANK in it
     grouped_matrix_neg_probes = grouped_matrix[
-        grouped_matrix.index.str.contains(
-            neg_ctrl_string
-        )
+        grouped_matrix.index.str.contains(neg_ctrl_string)
     ]
     grouped_matrix_true_probes = grouped_matrix[
-        ~grouped_matrix.index.str.contains(
-            neg_ctrl_string
-        )
+        ~grouped_matrix.index.str.contains(neg_ctrl_string)
     ]
 
     # create a plot_df that is grouped_matrix and a column specifying whether the gene is a neg control or not
@@ -1734,7 +1717,9 @@ def probe_stripplot(
     return html_fig
 
 
-def not_working_probe_based_on_quality(probe_quality,neg_ctrl_string, sample_id="Sample1"):
+def not_working_probe_based_on_quality(
+    probe_quality, neg_ctrl_string, sample_id="Sample1"
+):
     """
     Identify probes that are not working based on their quality scores.
 
@@ -1748,14 +1733,10 @@ def not_working_probe_based_on_quality(probe_quality,neg_ctrl_string, sample_id=
     """
 
     probe_quality_neg_probes = probe_quality[
-        probe_quality["Probe_ID"].str.contains(
-            neg_ctrl_string
-        )
+        probe_quality["Probe_ID"].str.contains(neg_ctrl_string)
     ]
     probe_quality_true_probes = probe_quality[
-        ~probe_quality["Probe_ID"].str.contains(
-            neg_ctrl_string
-        )
+        ~probe_quality["Probe_ID"].str.contains(neg_ctrl_string)
     ]
     plot_df = probe_quality.reset_index(drop=True)
     plot_df["Probe category"] = [
@@ -1801,7 +1782,9 @@ def not_working_probe_based_on_quality(probe_quality,neg_ctrl_string, sample_id=
     return plot_df
 
 
-def not_working_probe_based_on_morans_i(morans_table,neg_ctrl_string, sample_id="Sample1"):
+def not_working_probe_based_on_morans_i(
+    morans_table, neg_ctrl_string, sample_id="Sample1"
+):
     """
     Identify probes that are not working based on their Moran's I values.
 
@@ -1814,14 +1797,10 @@ def not_working_probe_based_on_morans_i(morans_table,neg_ctrl_string, sample_id=
         pandas.DataFrame: DataFrame with probe categories (Good, Bad, Neg_control) based on Moran's I values.
     """
     morans_table_neg_probes = morans_table[
-        morans_table.gene.str.contains(
-            neg_ctrl_string
-        )
+        morans_table.gene.str.contains(neg_ctrl_string)
     ]
     morans_table_true_probes = morans_table[
-        ~morans_table.gene.str.contains(
-            neg_ctrl_string
-        )
+        ~morans_table.gene.str.contains(neg_ctrl_string)
     ]
 
     if len(morans_table_neg_probes) < 5:
@@ -2265,7 +2244,7 @@ def get_morans_i(
     tissue_positions_list,
     neg_ctrl_string,
     max_workers=4,
-     squidpy=False,
+    squidpy=False,
     folder=None,
 ):
     """
@@ -2289,9 +2268,7 @@ def get_morans_i(
         unique_genes = matrix_joined["Gene_ID_y"].unique()
         unique_genes_series = pd.Series(unique_genes)
         neg_control_probes = unique_genes_series[
-            unique_genes_series.str.lower().str.contains(
-                neg_ctrl_string
-            )
+            unique_genes_series.str.lower().str.contains(neg_ctrl_string)
         ]
         if len(neg_control_probes) < 5:
             print(
@@ -2326,9 +2303,7 @@ def get_morans_i(
         unique_genes = matrix_joined["Gene_ID_y"].unique()
         unique_genes_series = pd.Series(unique_genes)
         neg_control_probes = unique_genes_series[
-            unique_genes_series.str.lower().str.contains(
-                neg_ctrl_string
-            )
+            unique_genes_series.str.lower().str.contains(neg_ctrl_string)
         ]
         if len(neg_control_probes) < 5:
             print(
@@ -2684,7 +2659,7 @@ def main():
         save_plots=args.save_plots,
         squidpy=args.squidpy,
         minimal_plots=args.minimal_plots,
-        neg_ctrl_string=args.neg_ctrl_string
+        neg_ctrl_string=args.neg_ctrl_string,
     )
 
 

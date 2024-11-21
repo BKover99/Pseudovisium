@@ -217,7 +217,7 @@ def merge_data(folders, pv_format=False):
         real_spot_diam_pixel = scalefactors["spot_diameter_fullres"]
         if data_source == "v":
             tissue_positions_list = pd.read_csv(
-            folder + "/spatial/tissue_positions_list.csv", header=None
+                folder + "/spatial/tissue_positions_list.csv", header=None
             )
             tissue_positions_list.columns = [
                 "barcode",
