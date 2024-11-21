@@ -109,7 +109,7 @@ pip install Pseudovisium
 
 For more information and the latest version, visit the Pseudovisium PyPI page https://pypi.org/project/Pseudovisium/.
 
-## Compatibility with AnnData / scanpy / squidpy framework - *adata_to_adata*
+## Compatibility with AnnData / scanpy / squidpy framework - *adata_to_adata()*
 Initially the purpose of Pseudovisium was to operate entirely on raw files - raw high-res input to raw PV output. But due to community demands, we now also enable binning of *cells* (usually cells, but works for transcripts if each observation in your AnnData is a transcript) directly from AnnData objects. This is extremely fast (few seconds usually), and might be convenient for a variety of downstream applications.
 
 It is a very straightforward single line of code.
@@ -117,13 +117,25 @@ It is a very straightforward single line of code.
 import Pseudovisium.pseudovisium_generate as pvg
 adata_new = pvg.adata_to_adata(adata_fullres,25,"hex")
 ```
-## Compatibility with SpatialData framework - *spatialdata_to_spatialdata*
-
-
-
-
-
+See also:
 [Converting Nanostring CosMx Pancreas AnnData object to binned data.](https://github.com/BKover99/Pseudovisium/blob/main/Tutorials/Working_on_anndata_Tutorial.ipynb)
+
+
+
+## Compatibility with SpatialData framework - *spatialdata_to_spatialdata()*
+```python
+import Pseudovisium.pseudovisium_generate as pvg
+import spatialdata as sd
+
+sdata = sd.read_zarr("./data.zarr")
+pvg.spatialdata_to_spatialdata(sdata, "table",
+                                new_table_id= None,
+                                new_shapes_id= None,
+                                bin_size=50,
+                                bin_type="hex")
+```
+
+
 
 ## Use cases for binning/rasterisation
 
