@@ -117,6 +117,11 @@ It is a very straightforward single line of code.
 import Pseudovisium.pseudovisium_generate as pvg
 adata_new = pvg.adata_to_adata(adata_fullres,25,"hex")
 ```
+See also:
+[Converting Nanostring CosMx Pancreas AnnData object to binned data.](https://github.com/BKover99/Pseudovisium/blob/main/Tutorials/Working_on_anndata_Tutorial.ipynb)
+
+
+
 ## Compatibility with SpatialData framework - *spatialdata_to_spatialdata()*
 ```python
 import Pseudovisium.pseudovisium_generate as pvg
@@ -131,7 +136,6 @@ pvg.spatialdata_to_spatialdata(sdata, "table",
 ```
 
 
-[Converting Nanostring CosMx Pancreas AnnData object to binned data.](https://github.com/BKover99/Pseudovisium/blob/main/Tutorials/Working_on_anndata_Tutorial.ipynb)
 
 ## Use cases for binning/rasterisation
 
