@@ -2,42 +2,41 @@
 Pseudovisium is a Python software package designed to democratize the analysis of spatial transcriptomics data. By leveraging hexagonal binning, Pseudovisium enables efficient compression and visualization of spatial data, making exploratory analysis and quality control at least an order of magnitude faster and more memory efficient. The goal of this tool is not to increase accuracy, but to make spatial data analysis more accessible, regardless of computing environment. Additionally, this package facilitates simulating low-res/Visium spatial experiments both for practical (e.g. experimental design) and theoretical (e.g. studying the impact of resolution) purposes.
 
 ## 🚀 Key Features
-### 1. *pseudovisium_generate* module:   Data Compression 📊
-
-The generate_pv command takes your spatial transcriptomics data in CSV/parquet format and performs hexagonal binning to compress the data while preserving spatial information. It calculates hexagon counts and cell counts, and creates a well-structured output directory with all the necessary files for downstream analysis.
+### 1. *pseudovisium_generate* module: Data Compression 📊
+The generate_pv command takes your raw spatial transcriptomics data in CSV/parquet format, or your spatial transcriptomics object in AnnData/SpatialData/Zarr format, and performs spatial binning (hexagonal or square) to compress the data while preserving spatial information. See the [extensive list of tutorials](https://github.com/BKover99/Pseudovisium/blob/main/Tutorials/) for possible use cases. It calculates binned counts and cell counts, and creates a well-structured output directory with all the necessary files for downstream analysis. The output format is the Pseudovisium format, which can then be used as any Visium folder (for any downstream application) or as input to pseudovisium_qc and/or pseudovisium_merge.
 
 #### CLI arguments for *pseudovisium_generate* or generate_pv() (e.g. used within Jupyter notebook) function:
-
 | Argument | Shorthand | Description |
 | --- | --- | --- |
-| `csv_file` | `-c` | The path to the CSV/parquet file containing the spatial transcriptomics data. |
-| `img_file_path` | `-i` | The path to the image file associated with the spatial data (optional). |
-| `hexagon_size` | `-hs` | The size of the hexagons used for binning (default: 100). |
-| `output_path` | `-o` | The path to save the Pseudovisium output (default: current directory). |
-| `batch_size` | `-b` | The number of rows per batch for parallel processing (default: 1000000). |
-| `alignment_matrix_file` | `-am` | The path to the alignment matrix file (optional). |
-| `project_name` | `-p` | The name of the project (default: 'project'). |
-| `image_pixels_per_um` | `-ppu` | The number of image pixels per micrometer (default: 1). |
-| `tissue_hires_scalef` | `-ths` | The scaling factor for the high-resolution tissue image (default: 0.2). |
-| `technology` | `-t` | The technology used for the spatial data (default: 'Xenium'). |
-| `feature_colname` | `-fc` | The name of the feature column in the CSV/parquet file (default: 'feature_name'). |
-| `x_colname` | `-xc` | The name of the x-coordinate column in the CSV/parquet file (default: 'x_location'). |
-| `y_colname` | `-yc` | The name of the y-coordinate column in the CSV/parquet file (default: 'y_location'). |
-| `cell_id_colname` | `-cc` | The name of the cell ID column in the CSV/parquet file (default: 'None'). |
-| `quality_colname` | `-qcol` | The name of the quality score column in the CSV/parquet file (default: 'qv'). |
-| `max_workers` | `--mw` | The maximum number of worker processes to use for parallel processing (default: min(2, multiprocessing.cpu_count())). |
+| `csv_file` | `-c` | Path to input data file (CSV, Parquet, or gzipped CSV). |
+| `img_file_path` | `-i` | Path to tissue image file (optional). |
+| `bin_size` | `-bs` | Size of the spatial bins (default: 100). |
+| `output_path` | `-o` | Base path for output directory (default: current directory). |
+| `batch_size` | `-b` | Number of rows per batch for parallel processing (default: 1000000). |
+| `alignment_matrix_file` | `-am` | Path to image alignment matrix (optional). |
+| `project_name` | `-p` | Name of the project subfolder (default: 'project'). |
+| `image_pixels_per_um` | `-ppu` | Image resolution in pixels per micrometer (default: 1). |
+| `tissue_hires_scalef` | `-ths` | Scaling factor for high-resolution tissue image (default: 0.2). |
+| `technology` | `-t` | Technology platform name (default: 'Xenium'). Supports: Xenium, Vizgen, CosMx/Nanostring, Visium_HD, Curio, seqFISH, Zarr, SpatialData, AnnData. |
+| `feature_colname` | `-fc` | Name of the feature/gene column (default: 'feature_name'). |
+| `x_colname` | `-xc` | Name of the x-coordinate column (default: 'x_location'). |
+| `y_colname` | `-yc` | Name of the y-coordinate column (default: 'y_location'). |
+| `cell_id_colname` | `-cc` | Name of the cell ID column (default: 'None'). |
+| `quality_colname` | `-qcol` | Name of the quality score column (default: 'qv'). |
+| `max_workers` | `--mw` | Maximum number of parallel processes (default: min(2, multiprocessing.cpu_count())). |
 | `quality_filter` | `-qf` | Whether to filter rows based on quality score (default: False). |
-| `count_colname` | `-ccol` | The name of the count column in the CSV/parquet file (default: 'NA'). |
-| `visium_hd_folder` | `-vhf` | The path to the Visium HD folder (optional). |
-| `smoothing` | `-s` | The smoothing factor for high-resolution data (default: False). |
-| `quality_per_hexagon` | `-qph` | Whether to calculate quality per hexagon (default: False). |
-| `quality_per_probe` | `-qpp` | Whether to calculate quality per probe (default: False). |
-| `h5_x_colname` | `-h5x` | The name of the x-coordinate column in the h5 file (default: 'x'). |
-| `h5_y_colname` | `-h5y` | The name of the y-coordinate column in the h5 file (default: 'y'). |
-| `coord_to_um_conversion` | `-ctu` | The conversion factor from coordinates to micrometers (default: 1). |
-| `spot_diameter` | `-sd` | The diameter of the spot for Visium-like array structure (optional). |
-| `hex_square` | `-hex` | Shape of observational unit ("hex" or "square" - "hex" by default). |
-
+| `count_colname` | `-ccol` | Name of the count column (default: 'NA'). |
+| `folder_or_object` | `-foo` | Path to data folder or data object for specific formats (optional). |
+| `smoothing` | `-s` | Smoothing factor for high-resolution data (default: False). |
+| `quality_per_hexagon` | `-qph` | Whether to calculate quality metrics per bin (default: False). |
+| `quality_per_probe` | `-qpp` | Whether to calculate quality metrics per probe (default: False). |
+| `h5_x_colname` | `-h5x` | Name of x-coordinate column in h5 files (default: 'x'). |
+| `h5_y_colname` | `-h5y` | Name of y-coordinate column in h5 files (default: 'y'). |
+| `coord_to_um_conversion` | `-ctu` | Conversion factor from coordinates to micrometers (default: 1). |
+| `spot_diameter` | `-sd` | Diameter for Visium-like spot array simulation (optional). |
+| `hex_square` | `-hex` | Shape of spatial bins: "hex" or "square" (default: "hex"). |
+| `sd_table_id` | `-sid` | Table identifier in SpatialData object (optional). |
+| `pixel_to_micron` | `-ptm` | Whether to convert pixel coordinates to microns (default: False). |
 
 
 ### 2. *pseudovisium_qc* module:  Quality Control 📈
@@ -88,6 +87,12 @@ Technologies tried include:
 #### seqFISH (Spatial Genomics)
 #### VisiumHD (10X)
 
+In addition we also support various inputs from the scverse eco-system, including:
+#### AnnData
+#### SpatialData
+#### Zarr
+
+
 Tested operating systems include:
 #### Windows 10
 #### MacOS Sonoma 14.3.1
@@ -104,14 +109,19 @@ pip install Pseudovisium
 
 For more information and the latest version, visit the Pseudovisium PyPI page https://pypi.org/project/Pseudovisium/.
 
-## Compatibility with AnnData / scanpy framework
-Initially the purpose of Pseudovisium was to operate entirely on raw files - raw high-res input to raw PV output. But due to community demands, we now also enable binning of *cells* (not transcripts!) from AnnData objects. This is extremely fast (seconds at most), and might be convenient for a variety of downstream applications.
+## Compatibility with AnnData / scanpy / squidpy framework - *adata_to_adata*
+Initially the purpose of Pseudovisium was to operate entirely on raw files - raw high-res input to raw PV output. But due to community demands, we now also enable binning of *cells* (usually cells, but works for transcripts if each observation in your AnnData is a transcript) directly from AnnData objects. This is extremely fast (few seconds usually), and might be convenient for a variety of downstream applications.
 
 It is a very straightforward single line of code.
 ```python
 import Pseudovisium.pseudovisium_generate as pvg
-adata_new = pvg.spatial_binning_adata(adata_fullres,25,"hex")
+adata_new = pvg.adata_to_adata(adata_fullres,25,"hex")
 ```
+## Compatibility with SpatialData framework - *spatialdata_to_spatialdata*
+
+
+
+
 
 [Converting Nanostring CosMx Pancreas AnnData object to binned data.](https://github.com/BKover99/Pseudovisium/blob/main/Tutorials/Working_on_anndata_Tutorial.ipynb)
 
@@ -133,13 +143,15 @@ adata_new = pvg.spatial_binning_adata(adata_fullres,25,"hex")
 
 [Performing spatial GSEA with spatialAUC](https://github.com/BKover99/spatialAUC)
 
-## Goals
+## Goals tracker
 - [x] Starting rotation project with working prototype - Apr 7, 2024
 - [x] Releasing the repo with minimal working capabilities - Apr 20, 2024
 - [x] Adding supporting Colab notebooks - Jun 20, 2024
 - [x] Releasing all data used in this work on OneDrive - Jun 20, 2024
 - [x] Tidying up all code - Jun 20, 2024
 - [x] Posting pre-print to Biorxiv - July 24, 2024  https://www.biorxiv.org/content/10.1101/2024.07.23.604776v1.full
+- [x] Peer-review
+- [ ] Revisions - currently ongoing, expected to be done soon.
 - [ ] Publication of peer-reviewed research article
 
 ## Citation
