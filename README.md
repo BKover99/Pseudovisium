@@ -118,9 +118,17 @@ import Pseudovisium.pseudovisium_generate as pvg
 adata_new = pvg.adata_to_adata(adata_fullres,25,"hex")
 ```
 ## Compatibility with SpatialData framework - *spatialdata_to_spatialdata*
+```python
+import Pseudovisium.pseudovisium_generate as pvg
+import spatialdata as sd
 
-
-
+sdata = sd.read_zarr("./data.zarr")
+pvg.spatialdata_to_spatialdata(sdata, "table",
+                                new_table_id= None,
+                                new_shapes_id= None,
+                                bin_size=50,
+                                bin_type="hex")
+```
 
 
 [Converting Nanostring CosMx Pancreas AnnData object to binned data.](https://github.com/BKover99/Pseudovisium/blob/main/Tutorials/Working_on_anndata_Tutorial.ipynb)
