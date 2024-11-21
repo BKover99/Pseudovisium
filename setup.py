@@ -2,7 +2,7 @@
 from setuptools import setup, find_packages
 
 
-VERSION = '1.0.1'
+VERSION = '1.0.3'
 DESCRIPTION = 'Python package for hexagonal binning of high-resolution spatial transcriptomic data'
 LONG_DESCRIPTION = 'Python package for hexagonal binning of high-resolution spatial transcriptomic data, for more information see https://github.com/BKover99/pseudovisium'
 

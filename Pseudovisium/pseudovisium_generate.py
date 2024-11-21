@@ -30,15 +30,16 @@ def closest_hex(x, y, bin_size, spot_diameter=None):
     Calculates the closest hexagon centroid to the given (x, y) coordinates.
 
     Args:
-        x (float): The x-coordinate.
-        y (float): The y-coordinate.
-        bin_size (float): The size of the hexagon.
-        spot_diameter (float, optional): The diameter of the spot. Defaults to None.
+        x (float): The x-coordinate of the point.
+        y (float): The y-coordinate of the point.
+        bin_size (float): The size of the hexagon (distance from center to middle of edge).
+        spot_diameter (float, optional): The diameter of the spot for Visium-like array simulation.
+                                       If provided, points too far from centroids are excluded.
 
     Returns:
-        tuple: The closest hexagon centroid coordinates (x, y) rounded to the nearest integer.
-               Returns -1 if the spot diameter is provided and the distance to the closest
-               hexagon centroid is greater than half the spot diameter.
+        tuple or str: The closest hexagon centroid coordinates (x, y) rounded to the nearest integer.
+                     Returns "-1" as a string if spot_diameter is provided and the distance to 
+                     the closest hexagon centroid is greater than half the spot diameter.
     """
     spot = spot_diameter is not None
 
@@ -118,8 +119,8 @@ def closest_square(x, y, square_size):
     Calculates the closest square centroid to the given (x, y) coordinates.
     
     Args:
-        x (float): The x-coordinate.
-        y (float): The y-coordinate.
+        x (float): The x-coordinate of the point.
+        y (float): The y-coordinate of the point.
         square_size (float): The length of the square side.
 
     Returns:
@@ -149,28 +150,31 @@ def process_batch(
     hex_square="hex",
 ):
     """
-    Processes a batch of data to calculate hexagon counts and cell counts.
+    Processes a batch of spatial transcriptomics data to calculate binned counts and statistics.
 
     Args:
-        df_batch (pd.DataFrame): The DataFrame containing the batch data.
-        bin_size (float): The size of the hexagon.
-        feature_colname (str): The name of the feature column.
-        x_colname (str): The name of the x-coordinate column.
-        y_colname (str): The name of the y-coordinate column.
-        cell_id_colname (str): The name of the cell ID column.
-        quality_colname (str, optional): The name of the quality score column. Defaults to None.
-        quality_filter (bool, optional): Whether to filter rows based on quality score. Defaults to False.
-        count_colname (str, optional): The name of the count column. Defaults to "NA".
-        smoothing (bool, optional): Whether to apply smoothing to the counts. Defaults to False.
-        quality_per_hexagon (bool, optional): Whether to calculate quality per hexagon. Defaults to False.
-        quality_per_probe (bool, optional): Whether to calculate quality per probe. Defaults to False.
-        coord_to_um_conversion (float, optional): The conversion factor from coordinates to micrometers. Defaults to 1.
-        spot_diameter (float, optional): The diameter of the spot. Defaults to None.
-        hex_square (str, optional): The shape observational units. Defaults to "hex".
+        df_batch (pd.DataFrame): DataFrame containing the batch data.
+        bin_size (float): Size of the spatial bin (hexagon or square).
+        feature_colname (str): Name of the feature/gene column.
+        x_colname (str): Name of the x-coordinate column.
+        y_colname (str): Name of the y-coordinate column.
+        cell_id_colname (str): Name of the cell ID column.
+        quality_colname (str, optional): Name of the quality score column.
+        quality_filter (bool, optional): Whether to filter rows based on quality score.
+        count_colname (str, optional): Name of the count column. Uses 1 if "NA".
+        smoothing (bool, optional): Whether to apply smoothing to the counts.
+        quality_per_hexagon (bool, optional): Whether to calculate quality metrics per spatial bin.
+        quality_per_probe (bool, optional): Whether to calculate quality metrics per probe/gene.
+        coord_to_um_conversion (float, optional): Conversion factor from coordinates to micrometers.
+        spot_diameter (float, optional): Diameter for Visium-like spot array simulation.
+        hex_square (str, optional): Shape of spatial bins: "hex" or "square".
 
     Returns:
-        tuple: A tuple containing the hexagon counts, hexagon cell counts, hexagon quality,
-               and probe quality dictionaries.
+        tuple: Contains combination of:
+            - DataFrame of binned counts
+            - DataFrame of binned cell counts (if cell_id_colname provided)
+            - Dictionary of bin quality metrics (if quality_per_hexagon True)
+            - Dictionary of probe quality metrics (if quality_per_probe True)
     """
 
     df_batch[x_colname] = pd.to_numeric(df_batch[x_colname], errors="coerce")
@@ -288,8 +292,11 @@ def write_10X_h5(adata, file):
     Writes an AnnData object to a 10X-formatted h5 file.
 
     Args:
-        adata (AnnData): The AnnData object to be written.
-        file (str): The file name to be written to. If no extension is provided, '.h5' is appended.
+        adata (AnnData): AnnData object to be written.
+        file (str): Output file path. '.h5' extension added if not provided.
+
+    Notes:
+        Creates a 10X Genomics-compatible h5 file
     """
 
     if ".h5" not in file:
@@ -330,7 +337,6 @@ def process_csv_file(
     csv_file,
     bin_size,
     batch_size=1000000,
-    technology="Xenium",
     feature_colname="feature_name",
     x_colname="x_location",
     y_colname="y_location",
@@ -342,43 +348,41 @@ def process_csv_file(
     smoothing=False,
     quality_per_hexagon=False,
     quality_per_probe=False,
-    h5_x_colname="x",
-    h5_y_colname="y",
     coord_to_um_conversion=1,
     spot_diameter=None,
     hex_square="hex"
 
 ):
     """
-    Processes a CSV or Parquet file to calculate hexagon counts and cell counts using parallel processing.
+    Processes spatial transcriptomics data to calculate binned counts using parallel processing.
 
     Args:
-        csv_file (str): The path to the CSV or Parquet file.
-        bin_size (float): The size of the hexagon.
-        batch_size (int, optional): The number of rows per batch. Defaults to 1000000.
-        technology (str, optional): The technology used. Defaults to "Xenium".
-        feature_colname (str, optional): The name of the feature column. Defaults to "feature_name".
-        x_colname (str, optional): The name of the x-coordinate column. Defaults to "x_location".
-        y_colname (str, optional): The name of the y-coordinate column. Defaults to "y_location".
-        cell_id_colname (str, optional): The name of the cell ID column. Defaults to "None".
-        quality_colname (str, optional): The name of the quality score column. Defaults to "qv".
-        max_workers (int, optional): The maximum number of worker processes to use.
-                                     Defaults to min(2, multiprocessing.cpu_count()).
-        quality_filter (bool, optional): Whether to filter rows based on quality score. Defaults to False.
-        count_colname (str, optional): The name of the count column. Defaults to "NA".
-        smoothing (bool, optional): Whether to apply smoothing to the counts. Defaults to False.
-        quality_per_hexagon (bool, optional): Whether to calculate quality per hexagon. Defaults to False.
-        quality_per_probe (bool, optional): Whether to calculate quality per probe. Defaults to False.
-        h5_x_colname (str, optional): The name of the x-coordinate column in the h5 file. Defaults to "x".
-        h5_y_colname (str, optional): The name of the y-coordinate column in the h5 file. Defaults to "y".
-        coord_to_um_conversion (float, optional): The conversion factor from coordinates to micrometers.
-                                                  Defaults to 1.
-        spot_diameter (float, optional): The diameter of the spot. Defaults to None.
-        hex_square (str, optional): The shape observational units. Defaults to "hex".
+        csv_file (str): Path to CSV, Parquet, or gzipped CSV file containing spatial data.
+        bin_size (float): Size of the spatial bin (hexagon or square).
+        batch_size (int, optional): Number of rows to process per batch.
+        feature_colname (str, optional): Name of the feature/gene column.
+        x_colname (str, optional): Name of the x-coordinate column.
+        y_colname (str, optional): Name of the y-coordinate column.
+        cell_id_colname (str, optional): Name of the cell ID column.
+        quality_colname (str, optional): Name of the quality score column.
+        max_workers (int, optional): Maximum number of parallel processes.
+        quality_filter (bool, optional): Whether to filter rows based on quality score.
+        count_colname (str, optional): Name of the count column. Uses 1 if "NA".
+        smoothing (bool, optional): Whether to apply smoothing to the counts.
+        quality_per_hexagon (bool, optional): Whether to calculate quality metrics per spatial bin.
+        quality_per_probe (bool, optional): Whether to calculate quality metrics per probe/gene.
+        coord_to_um_conversion (float, optional): Conversion factor from coordinates to micrometers.
+        spot_diameter (float, optional): Diameter for Visium-like spot array simulation.
+        hex_square (str, optional): Shape of spatial bins: "hex" or "square".
 
     Returns:
-        tuple: A tuple containing the hexagon counts, unique hexagons, unique features,
-               hexagon cell counts, hexagon quality, and probe quality dictionaries.
+        tuple: Contains:
+            - scipy.sparse.csr_matrix: Binned count matrix
+            - np.ndarray: Unique bin coordinates
+            - np.ndarray: Unique features/genes
+            - pd.DataFrame: Binned cell counts (if cell_id_colname provided)
+            - dict: Bin quality metrics (if quality_per_hexagon True)
+            - dict: Probe quality metrics (if quality_per_probe True)
     """
 
     print(f"Quality filter is set to {quality_filter}\n")
@@ -616,30 +620,35 @@ def create_pseudovisium(
     spot_diameter=None,
 ):
     """
-    Creates a Pseudovisium output directory structure and files.
+    Creates a Pseudovisium output directory containing binned spatial transcriptomics data.
 
     Args:
-        path (str): The path to create the Pseudovisium output directory.
-        hexagon_counts (scipy.sparse.csr_matrix): A sparse matrix of hexagon counts.
-        unique_hexagons (numpy.ndarray): The sorted unique hexagons.
-        unique_features (numpy.ndarray): The sorted unique features.
-        hexagon_cell_counts (pd.DataFrame): A DataFrame of hexagon cell counts.
-        hexagon_quality (dict): A dictionary of hexagon quality scores.
-        probe_quality (dict): A dictionary of probe quality scores.
-        cell_id_colname (str): The name of the cell ID column.
-        img_file_path (str, optional): The path to the image file. Defaults to None.
-        shift_to_positive (bool, optional): Whether to shift coordinates to positive values. Defaults to False.
-        project_name (str, optional): The name of the project. Defaults to "project".
-        alignment_matrix_file (str, optional): The path to the alignment matrix file. Defaults to None.
-        image_pixels_per_um (float, optional): The number of image pixels per micrometer. Defaults to 1.0.
-        bin_size (int, optional): The size of the hexagon. Defaults to 50.
-        tissue_hires_scalef (float, optional): The scaling factor for the high-resolution tissue image.
-                                                Defaults to 0.2.
-        pixel_to_micron (bool, optional): Whether to convert pixel coordinates to micron coordinates.
-                                           Defaults to False.
-        max_workers (int, optional): The maximum number of worker processes to use.
-                                     Defaults to min(2, multiprocessing.cpu_count()).
-        spot_diameter (float, optional): The diameter of the spot. Defaults to None.
+        output_path (str): Base path for output directory.
+        hexagon_counts (scipy.sparse.csr_matrix): Matrix of binned counts.
+        unique_hexagons (np.ndarray): Array of unique bin coordinates.
+        unique_features (np.ndarray): Array of unique features/genes.
+        hexagon_cell_counts (pd.DataFrame): DataFrame of binned cell counts.
+        hexagon_quality (dict): Dictionary of bin quality metrics.
+        probe_quality (dict): Dictionary of probe quality metrics.
+        cell_id_colname (str): Name of the cell ID column.
+        img_file_path (str, optional): Path to tissue image file.
+        shift_to_positive (bool, optional): Whether to shift coordinates to positive values.
+        project_name (str, optional): Name of the project subfolder.
+        alignment_matrix_file (str, optional): Path to image alignment matrix.
+        image_pixels_per_um (float, optional): Image resolution in pixels per micrometer.
+        bin_size (int, optional): Size of the spatial bins.
+        tissue_hires_scalef (float, optional): Scaling factor for high-res tissue image.
+        pixel_to_micron (bool, optional): Whether to convert pixel coordinates to microns.
+        max_workers (int, optional): Maximum number of parallel processes.
+        spot_diameter (float, optional): Diameter for Visium-like spot array simulation.
+
+    Notes:
+        Creates a directory structure compatible with spatial transcriptomics analysis tools,
+        including:
+        - Binned count matrix in Matrix Market and h5 formats
+        - Spatial coordinates and metadata
+        - Tissue images (if provided)
+        - Quality metrics (if calculated)
     """
 
 
@@ -984,15 +993,20 @@ def create_pseudovisium(
 ###################################################################################################################################################
 def read_files(folder, technology):
     """
-    Reads the necessary files from a Visium HD or Curio folder.
+    Reads spatial transcriptomics data files based on the technology platform.
 
     Args:
-        folder (str): The path to the Visium HD or Curio folder.
-        technology (str): The technology used, either "Visium_HD" or "Curio".
+        folder (str): Path to the data folder.
+        technology (str): Technology platform identifier:
+            - "Visium_HD"/"VisiumHD"/"Visium HD": Reads Visium HD format files
+            - "Curio": Reads Curio format files (.h5ad)
+            - "Zarr": Reads SpatialData Zarr stores
 
     Returns:
-        tuple or AnnData: A tuple containing the scale factors, tissue positions, and filtered
-                          feature-barcode matrix (for Visium HD), or an AnnData object (for Curio).
+        Union[Tuple[dict, pd.DataFrame, anndata.AnnData], anndata.AnnData, spatialdata.SpatialData]:
+            - For Visium HD: (scalefactors, tissue positions, feature-barcode matrix)
+            - For Curio: AnnData object
+            - For Zarr: SpatialData object
     """
 
     if (
@@ -1023,18 +1037,31 @@ def asdata_to_df(
     asdata, technology, tissue_pos=None, scalefactors=None, x_col=None, y_col=None,sd_table_id=None
 ):
     """
-    Converts an AnnData object to a DataFrame.
+    Converts various spatial data objects to a standardized DataFrame format.
 
     Args:
-        asdata (AnnData/SpatialData): The AnnData/SpatailData object.
-        technology (str): The technology used, either "Visium_HD" or "Curio".
-        tissue_pos (DataFrame, optional): The tissue positions DataFrame (for Visium HD). Defaults to None.
-        scalefactors (dict, optional): The scale factors dictionary (for Visium HD). Defaults to None.
-        x_col (str, optional): The name of the x-coordinate column (for Curio). Defaults to None.
-        y_col (str, optional): The name of the y-coordinate column (for Curio). Defaults to None.
+        asdata (Union[anndata.AnnData, spatialdata.SpatialData]): Input data object.
+        technology (str): Technology platform identifier:
+            - "Visium_HD"/"VisiumHD"/"Visium HD": Processes Visium HD format
+            - "Curio": Processes Curio format
+            - "SpatialData": Processes SpatialData format
+            - "AnnData": Processes AnnData format
+        tissue_pos (pd.DataFrame, optional): Tissue positions for Visium HD data.
+        scalefactors (dict, optional): Scale factors for Visium HD data.
+        x_col (str, optional): Name of x-coordinate column in Curio data.
+        y_col (str, optional): Name of y-coordinate column in Curio data.
+        sd_table_id (str, optional): Table identifier in SpatialData object.
 
     Returns:
-        tuple: A tuple containing the converted DataFrame and the image resolution or scale.
+        Union[Tuple[pd.DataFrame, float], pd.DataFrame]:
+            - For Visium HD: (DataFrame, image resolution in pixels per micron)
+            - For Curio: (DataFrame, minimal distance between points)
+            - For SpatialData/AnnData: DataFrame with standardized columns:
+                - barcode: Spot/cell identifier
+                - gene: Gene/feature name
+                - count: Expression count
+                - x: X-coordinate
+                - y: Y-coordinate
     """
 
     if (
@@ -1176,19 +1203,37 @@ def asdata_to_df(
 
 
 
-def anndata_to_transcripts_pq(folder, output, technology, x_col=None, y_col=None,sd_table_id=None):
+def anndata_to_transcripts_pq(folder_or_object, output, technology, x_col=None, y_col=None,sd_table_id=None):
     """
-    Converts Visium HD or Curio files to a transcripts Parquet file.
+    Converts various spatial data formats to a standardized Parquet file.
 
     Args:
-        folder (str): The path to the Visium HD or Curio folder.
-        output (str): The path to save the transcripts Parquet file.
-        technology (str): The technology used, either "Visium_HD" or "Curio".
-        x_col (str, optional): The name of the x-coordinate column (for Curio). Defaults to None.
-        y_col (str, optional): The name of the y-coordinate column (for Curio). Defaults to None.
+        folder_or_object (Union[str, anndata.AnnData, spatialdata.SpatialData]): 
+            Input data source - either a path to data folder or a data object.
+        output (str): Path where the output Parquet file will be saved.
+        technology (str): Technology platform identifier:
+            - "Visium_HD"/"VisiumHD"/"Visium HD": Processes Visium HD format
+            - "Curio": Processes Curio format
+            - "Zarr": Processes Zarr stores
+            - "SpatialData": Processes SpatialData objects
+            - "AnnData": Processes AnnData objects
+        x_col (str, optional): Name of x-coordinate column in Curio data.
+        y_col (str, optional): Name of y-coordinate column in Curio data.
+        sd_table_id (str, optional): Table identifier in SpatialData object.
 
     Returns:
-        float: The image resolution (pixels per micrometer) for Visium HD, or the scale for Curio.
+        Optional[float]: 
+            - For Visium HD: Image resolution in pixels per micron
+            - For Curio: Minimal distance between points
+            - For others: None
+
+    Notes:
+        Creates a standardized Parquet file containing:
+        - barcode: Spot/cell identifier
+        - gene: Gene/feature name
+        - count: Expression count
+        - x: X-coordinate
+        - y: Y-coordinate
     """
 
     if (
@@ -1196,7 +1241,7 @@ def anndata_to_transcripts_pq(folder, output, technology, x_col=None, y_col=None
         or (technology == "VisiumHD")
         or (technology == "Visium HD")
     ):
-        scalefactors, tissue_pos, fb_matrix = read_files(folder, technology)
+        scalefactors, tissue_pos, fb_matrix = read_files(folder_or_object, technology)
         df, image_resolution = asdata_to_df(
             asdata=fb_matrix,
             technology=technology,
@@ -1207,7 +1252,7 @@ def anndata_to_transcripts_pq(folder, output, technology, x_col=None, y_col=None
         df.to_parquet(output, index=False)
         return image_resolution
     elif technology == "Curio":
-        adata = read_files(folder, technology)
+        adata = read_files(folder_or_object, technology)
         df, scale = asdata_to_df(
             asdata=adata, technology=technology, x_col=x_col, y_col=y_col
         )
@@ -1215,18 +1260,18 @@ def anndata_to_transcripts_pq(folder, output, technology, x_col=None, y_col=None
         return scale
     
     elif technology == "Zarr":
-        asdata = read_files(folder, technology)
+        asdata = read_files(folder_or_object, technology)
         df = asdata_to_df(asdata=asdata, technology="SpatialData",sd_table_id=sd_table_id)
         df.to_parquet(output, index=False)
         return None
     
     elif technology == "SpatialData":
-        df = asdata_to_df(asdata=adata, technology=technology,sd_table_id=sd_table_id)
+        df = asdata_to_df(asdata=folder_or_object, technology=technology,sd_table_id=sd_table_id)
         df.to_parquet(output, index=False)
         return None
     
     elif technology == "AnnData":
-        df = asdata_to_df(asdata=adata, technology=technology,sd_table_id=sd_table_id)
+        df = asdata_to_df(asdata=folder_or_object, technology=technology,sd_table_id=sd_table_id)
         df.to_parquet(output, index=False)
         return None
     
@@ -1236,7 +1281,7 @@ def anndata_to_transcripts_pq(folder, output, technology, x_col=None, y_col=None
 
 
 def generate_pv(
-    csv_file,
+    csv_file=None,
     img_file_path=None,
     shift_to_positive=False,
     bin_size=100,
@@ -1268,39 +1313,54 @@ def generate_pv(
     sd_table_id=None,
 ):
     """
-    Generates a Pseudovisium output from a CSV file or Visium HD/Curio folder.
+    Main function to generate Pseudovisium output from various spatial transcriptomics data formats.
 
     Args:
-        csv_file (str): The path to the CSV file.
-        img_file_path (str, optional): The path to the image file. Defaults to None.
-        shift_to_positive (bool, optional): Whether to shift coordinates to positive values. Defaults to False.
-        bin_size (float, optional): The size of the hexagon. Defaults to 50.
-        output_path (str, optional): The path to save the Pseudovisium output. Defaults to None.
-        batch_size (int, optional): The number of rows per batch. Defaults to 1000000.
-        alignment_matrix_file (str, optional): The path to the alignment matrix file. Defaults to None.
-        project_name (str, optional): The name of the project. Defaults to "project".
-        image_pixels_per_um (float, optional): The number of image pixels per micrometer. Defaults to 1.
-        tissue_hires_scalef (float, optional): The scaling factor for the high-resolution tissue image. Defaults to 0.2.
-        technology (str, optional): The technology used. Defaults to "Xenium".
-        feature_colname (str, optional): The name of the feature column. Defaults to "feature_name".
-        x_colname (str, optional): The name of the x-coordinate column. Defaults to "x_location".
-        y_colname (str, optional): The name of the y-coordinate column. Defaults to "y_location".
-        cell_id_colname (str, optional): The name of the cell ID column. Defaults to "None".
-        quality_colname (str, optional): The name of the quality score column. Defaults to "qv".
-        pixel_to_micron (bool, optional): Whether to convert pixel coordinates to micron coordinates. Defaults to False.
-        max_workers (int, optional): The maximum number of worker processes to use. Defaults to min(2, multiprocessing.cpu_count()).
-        quality_filter (bool, optional): Whether to filter rows based on quality score. Defaults to False.
-        count_colname (str, optional): The name of the count column. Defaults to "NA".
-        folder_or_object (str, optional): The path to the VisiumHD/Curio/Zarr folder or Anndata/SpatialData object.
-        smoothing (bool, optional): Whether to apply smoothing to the counts. Defaults to False.
-        quality_per_hexagon (bool, optional): Whether to calculate quality per hexagon. Defaults to False.
-        quality_per_probe (bool, optional): Whether to calculate quality per probe. Defaults to False.
-        h5_x_colname (str, optional): The name of the x-coordinate column in the h5 file. Defaults to "x".
-        h5_y_colname (str, optional): The name of the y-coordinate column in the h5 file. Defaults to "y".
-        coord_to_um_conversion (float, optional): The conversion factor from coordinates to micrometers. Defaults to 1.
-        spot_diameter (float, optional): The diameter of the spot. Defaults to None.
-        hex_square (str, optional): The shape of the hexagon. Defaults to "hex".
-        sd_table_id (str, optional): The table id in the SpatialData object. Defaults to None.
+        csv_file (str, optional): Path to input data file (CSV, Parquet, or gzipped CSV).
+        img_file_path (str, optional): Path to tissue image file.
+        shift_to_positive (bool, optional): Whether to shift coordinates to positive values.
+        bin_size (float, optional): Size of the spatial bins.
+        output_path (str, optional): Base path for output directory.
+        batch_size (int, optional): Number of rows to process per batch.
+        alignment_matrix_file (str, optional): Path to image alignment matrix.
+        project_name (str, optional): Name of the project subfolder.
+        image_pixels_per_um (float, optional): Image resolution in pixels per micrometer.
+        tissue_hires_scalef (float, optional): Scaling factor for high-res tissue image.
+        technology (str, optional): Technology platform name.
+        feature_colname (str, optional): Name of the feature/gene column.
+        x_colname (str, optional): Name of the x-coordinate column.
+        y_colname (str, optional): Name of the y-coordinate column.
+        cell_id_colname (str, optional): Name of the cell ID column.
+        quality_colname (str, optional): Name of the quality score column.
+        pixel_to_micron (bool, optional): Whether to convert pixel coordinates to microns.
+        max_workers (int, optional): Maximum number of parallel processes.
+        quality_filter (bool, optional): Whether to filter rows based on quality score.
+        count_colname (str, optional): Name of the count column.
+        folder_or_object (str/object, optional): Path to data folder or data object.
+        smoothing (bool/float, optional): Whether/how much to smooth the counts.
+        quality_per_hexagon (bool, optional): Whether to calculate quality metrics per bin.
+        quality_per_probe (bool, optional): Whether to calculate quality metrics per probe.
+        h5_x_colname (str, optional): Name of x-coordinate column in h5 files.
+        h5_y_colname (str, optional): Name of y-coordinate column in h5 files.
+        coord_to_um_conversion (float, optional): Conversion factor from coordinates to micrometers.
+        spot_diameter (float, optional): Diameter for Visium-like spot array simulation.
+        hex_square (str, optional): Shape of spatial bins: "hex" or "square".
+        sd_table_id (str, optional): Table identifier in SpatialData object.
+
+    Notes:
+        Supports multiple input formats:
+        - Raw data files (CSV, Parquet, gzipped CSV)
+        - Visium HD data
+        - Curio data
+        - SpatialData/AnnData objects
+        - Various commercial platforms (Xenium, Vizgen, CosMx, etc.)
+
+        Creates a complete output directory with:
+        - Binned count matrices
+        - Spatial coordinates
+        - Quality metrics
+        - Tissue images (if provided)
+        - Configuration and metadata files
     """
     try:
         output = (
@@ -1337,262 +1397,267 @@ def generate_pv(
     print("#####################\n")
 
 
-    #try:
-
-    start = time.time()
-    
-
-    # to path, create a folder called pseudovisium
-    folderpath = output_path + "/pseudovisium/" + project_name
-    
-    # if folderpath exists, delete it
-    if os.path.exists(folderpath):
-        shutil.rmtree(folderpath)
-    
-    os.mkdir(folderpath)
     try:
-        print("Creating pseudovisium folder in output path:{0}\n".format(folderpath))
 
-        if os.path.exists(folderpath + "/pseudovisium/"):
-            print("Using already existing folder: {0}\n".format(folderpath + "/pseudovisium/"))
-        else:
-            os.mkdir(folderpath + "/pseudovisium/")
-        if os.path.exists(folderpath + "/spatial/"):
-            print("Using already existing folder: {0}\n".format(folderpath + "/spatial/"))
-        else:
-            os.mkdir(folderpath + "/spatial/")
-    except:
-        pass
-
-    if (
-        (technology == "Visium_HD")
-        or (technology == "VisiumHD")
-        or (technology == "Visium HD")
-    ):
-        print(
-            "Technology is Visium_HD. Generating transcripts.parquet file from Visium HD files.\n"
-        )
-        # Automatically calculating image_pixels_per_um from the scalefactors_json.json file
-        image_pixels_per_um = anndata_to_transcripts_pq(
-            folder_or_object, folder_or_object + "/transcripts.parquet", technology
-        )
-        csv_file = folderpath + "/transcripts.parquet"
-
-    
-    if technology == "Curio":
-        print(
-            "Technology is Curio. Generating transcripts.parquet file from Curio files.\n"
-        )
-        smoothing_scale = anndata_to_transcripts_pq(
-            folder_or_object,
-            folderpath + "/transcripts.parquet",
-            technology,
-            x_col=h5_x_colname,
-            y_col=h5_y_colname,
-        )
-        csv_file = folderpath + "/transcripts.parquet"
-        print("Smoothing defaults to : {0}".format(smoothing_scale / 4))
-        smoothing = smoothing_scale / 4
-    
-    
-    if technology == "Zarr":
-        print(
-            "Technology is unclear, but you passed a Zarr file. Generating transcripts.parquet file from Zarr files.\n"
-        )
-        anndata_to_transcripts_pq(
-            folder_or_object,
-            folderpath + "/transcripts.parquet",
-            technology,sd_table_id=sd_table_id
-        )
-        csv_file = folderpath + "/transcripts.parquet"
-
-    
-    if technology == "SpatialData" or technology == "AnnData":
+        start = time.time()
         
-        print(
-            "Technology is unclear, but you passed a SpatialData/AnnData object. Generating transcripts.parquet file.\n"
+
+        # to path, create a folder called pseudovisium
+        folderpath = output_path + "/pseudovisium/" + project_name
+        
+        # if folderpath exists, delete it
+        if os.path.exists(folderpath):
+            shutil.rmtree(folderpath)
+        
+        os.mkdir(folderpath)
+        try:
+            print("Creating pseudovisium folder in output path:{0}\n".format(folderpath))
+
+            if os.path.exists(folderpath + "/pseudovisium/"):
+                print("Using already existing folder: {0}\n".format(folderpath + "/pseudovisium/"))
+            else:
+                os.mkdir(folderpath + "/pseudovisium/")
+            if os.path.exists(folderpath + "/spatial/"):
+                print("Using already existing folder: {0}\n".format(folderpath + "/spatial/"))
+            else:
+                os.mkdir(folderpath + "/spatial/")
+        except:
+            pass
+
+        if (
+            (technology == "Visium_HD")
+            or (technology == "VisiumHD")
+            or (technology == "Visium HD")
+        ):
+            print(
+                "Technology is Visium_HD. Generating transcripts.parquet file from Visium HD files.\n"
+            )
+            # Automatically calculating image_pixels_per_um from the scalefactors_json.json file
+            image_pixels_per_um = anndata_to_transcripts_pq(
+                folder_or_object, folder_or_object + "/transcripts.parquet", technology
+            )
+            csv_file = folderpath + "/transcripts.parquet"
+
+        
+        if technology == "Curio":
+            print(
+                "Technology is Curio. Generating transcripts.parquet file from Curio files.\n"
+            )
+            smoothing_scale = anndata_to_transcripts_pq(
+                folder_or_object,
+                folderpath + "/transcripts.parquet",
+                technology,
+                x_col=h5_x_colname,
+                y_col=h5_y_colname,
+            )
+            csv_file = folderpath + "/transcripts.parquet"
+            print("Smoothing defaults to : {0}".format(smoothing_scale / 4))
+            smoothing = smoothing_scale / 4
+        
+        
+        if technology == "Zarr":
+            print(
+                "Technology is unclear, but you passed a Zarr file. Generating transcripts.parquet file from Zarr files.\n"
+            )
+            anndata_to_transcripts_pq(
+                folder_or_object,
+                folderpath + "/transcripts.parquet",
+                technology,sd_table_id=sd_table_id
+            )
+            csv_file = folderpath + "/transcripts.parquet"
+
+        
+        if technology == "SpatialData" or technology == "AnnData":
+            
+            print(
+                "Technology is unclear, but you passed a SpatialData/AnnData object. Generating transcripts.parquet file.\n"
+            )
+            anndata_to_transcripts_pq(
+                folder_or_object,
+                folderpath + "/transcripts.parquet",
+                technology, sd_table_id=sd_table_id
+            )
+            csv_file = folderpath + "/transcripts.parquet"
+
+        
+        if technology == "Xenium":
+            print("Technology is Xenium. Going forward with default column names.\n")
+            x_colname = "x_location"
+            y_colname = "y_location"
+            feature_colname = "feature_name"
+            cell_id_colname = "cell_id"
+            quality_colname = "qv"
+            count_colname = "NA"
+            #coord_to_um_conversion = 1
+
+        if technology == "Vizgen":
+            print("Technology is Vizgen. Going forward with default column names.\n")
+            x_colname = "global_x"
+            y_colname = "global_y"
+            feature_colname = "gene"
+            # cell_id_colname = "barcode_id"
+            count_colname = "NA"
+            #coord_to_um_conversion = 1
+
+        if (technology == "Nanostring") or (technology == "CosMx"):
+            print("Technology is Nanostring. Going forward with default column names.\n")
+            x_colname = "x_global_px"
+            y_colname = "y_global_px"
+            feature_colname = "target"
+            cell_id_colname = "cell"
+            count_colname = "NA"
+            if coord_to_um_conversion == 1:
+                print("Knowing CosMx, we are setting coord_to_um_conversion to 0.12028, which is likely better than the default 1.\n")
+                coord_to_um_conversion = 0.12028
+            # see ref https://smi-public.objects.liquidweb.services/cosmx-wtx/Pancreas-CosMx-ReadMe.html
+            # https://nanostring.com/wp-content/uploads/2023/09/SMI-ReadMe-BETA_humanBrainRelease.html
+            # Whereas old smi output seems to be 0.18
+            # https://nanostring-public-share.s3.us-west-2.amazonaws.com/SMI-Compressed/SMI-ReadMe.html
+
+        if (
+            (technology == "Visium_HD")
+            or (technology == "VisiumHD")
+            or (technology == "Visium HD")
+        ):
+            print(
+                "Technology is Visium_HD. Going forward with pseudovisium processed colnames.\n"
+            )
+            x_colname = "x"
+            y_colname = "y"
+            feature_colname = "gene"
+            cell_id_colname = "barcode"
+            count_colname = "count"
+            #coord_to_um_conversion = 1
+
+        if technology == "seqFISH":
+            print("Technology is seqFISH. Going forward with default column names.\n")
+            x_colname = "x"
+            y_colname = "y"
+            feature_colname = "name"
+            cell_id_colname = "cell"
+            count_colname = "NA"
+            #coord_to_um_conversion = 1
+
+        if technology == "Curio":
+            print("Technology is Curio. Going forward with default column names.\n")
+            x_colname = "x"
+            y_colname = "y"
+            feature_colname = "gene"
+            cell_id_colname = "barcode"
+            count_colname = "count"
+            #coord_to_um_conversion = 1
+
+        if (technology == "Zarr") or technology == ("SpatialData") or (technology == "AnnData"):
+            print("Technology is Zarr/SpatialData/AnnData. Going forward with default column names.\n")
+            x_colname = "x"
+            y_colname = "y"
+            feature_colname = "gene"
+            cell_id_colname = "barcode"
+            count_colname = "count"
+
+        else:
+            print("Technology not recognized. Going forward with set column names.\n")
+
+        (
+            hexagon_counts,
+            unique_hexagons,
+            unique_features,
+            hexagon_cell_counts,
+            hexagon_quality,
+            probe_quality,
+        ) = process_csv_file(
+            csv_file,
+            bin_size,
+            batch_size,
+            technology,
+            feature_colname,
+            x_colname,
+            y_colname,
+            cell_id_colname,
+            quality_colname=quality_colname,
+            max_workers=max_workers,
+            quality_filter=quality_filter,
+            count_colname=count_colname,
+            smoothing=smoothing,
+            quality_per_hexagon=quality_per_hexagon,
+            quality_per_probe=quality_per_probe,
+            h5_x_colname=h5_x_colname,
+            h5_y_colname=h5_y_colname,
+            coord_to_um_conversion=coord_to_um_conversion,
+            spot_diameter=spot_diameter,
+            hex_square=hex_square
         )
-        anndata_to_transcripts_pq(
-            folder_or_object,
-            folderpath + "/transcripts.parquet",
-            technology, sd_table_id=sd_table_id
+
+        # Create Pseudovisium output
+        create_pseudovisium(
+            output_path=output_path,
+            hexagon_counts=hexagon_counts,
+            unique_hexagons=unique_hexagons,
+            unique_features=unique_features,
+            hexagon_cell_counts=hexagon_cell_counts,
+            hexagon_quality=hexagon_quality,
+            probe_quality=probe_quality,
+            cell_id_colname=cell_id_colname,
+            img_file_path=img_file_path,
+            shift_to_positive=shift_to_positive,
+            project_name=project_name,
+            alignment_matrix_file=alignment_matrix_file,
+            image_pixels_per_um=image_pixels_per_um,
+            bin_size=bin_size,
+            tissue_hires_scalef=tissue_hires_scalef,
+            pixel_to_micron=pixel_to_micron,
+            max_workers=max_workers,
+            spot_diameter=spot_diameter,
         )
-        csv_file = folderpath + "/transcripts.parquet"
 
-    
-    if technology == "Xenium":
-        print("Technology is Xenium. Going forward with default column names.\n")
-        x_colname = "x_location"
-        y_colname = "y_location"
-        feature_colname = "feature_name"
-        cell_id_colname = "cell_id"
-        quality_colname = "qv"
-        count_colname = "NA"
-        #coord_to_um_conversion = 1
+        # save all arguments in a json file called arguments.json
+        print("Creating arguments.json file in output path.\n")
+        if type(folder_or_object) != str:
+            folder_or_object_entry = type(folder_or_object)
+        else:
+            folder_or_object_entry = folder_or_object
 
-    if technology == "Vizgen":
-        print("Technology is Vizgen. Going forward with default column names.\n")
-        x_colname = "global_x"
-        y_colname = "global_y"
-        feature_colname = "gene"
-        # cell_id_colname = "barcode_id"
-        count_colname = "NA"
-        #coord_to_um_conversion = 1
+        arguments = {
+            "csv_file": csv_file,
+            "img_file_path": img_file_path,
+            "bin_size": bin_size,
+            "output_path": output_path,
+            "batch_size": batch_size,
+            "alignment_matrix_file": alignment_matrix_file,
+            "project_name": project_name,
+            "image_pixels_per_um": image_pixels_per_um,
+            "tissue_hires_scalef": tissue_hires_scalef,
+            "technology": technology,
+            "feature_colname": feature_colname,
+            "x_colname": x_colname,
+            "y_colname": y_colname,
+            "cell_id_colname": cell_id_colname,
+            "pixel_to_micron": pixel_to_micron,
+            "quality_colname": quality_colname,
+            "quality_filter": quality_filter,
+            "count_colname": count_colname,
+            "smoothing": smoothing,
+            "quality_per_hexagon": quality_per_hexagon,
+            "quality_per_probe": quality_per_probe,
+            "max_workers": max_workers,
+            "folder_or_object": folder_or_object_entry, #this is because of course in case it is an object we cannot write it to a json
+            "h5_x_colname": h5_x_colname,
+            "h5_y_colname": h5_y_colname,
+            "coord_to_um_conversion": coord_to_um_conversion,
+            "spot_diameter": spot_diameter,
+            "hex_square": hex_square,
+        }
 
-    if (technology == "Nanostring") or (technology == "CosMx"):
-        print("Technology is Nanostring. Going forward with default column names.\n")
-        x_colname = "x_global_px"
-        y_colname = "y_global_px"
-        feature_colname = "target"
-        cell_id_colname = "cell"
-        count_colname = "NA"
-        if coord_to_um_conversion == 1:
-            print("Knowing CosMx, we are setting coord_to_um_conversion to 0.12028, which is likely better than the default 1.\n")
-            coord_to_um_conversion = 0.12028
-        # see ref https://smi-public.objects.liquidweb.services/cosmx-wtx/Pancreas-CosMx-ReadMe.html
-        # https://nanostring.com/wp-content/uploads/2023/09/SMI-ReadMe-BETA_humanBrainRelease.html
-        # Whereas old smi output seems to be 0.18
-        # https://nanostring-public-share.s3.us-west-2.amazonaws.com/SMI-Compressed/SMI-ReadMe.html
+        with open(
+            folderpath + "/arguments.json", "w"
+        ) as f:
+            json.dump(arguments, f)
 
-    if (
-        (technology == "Visium_HD")
-        or (technology == "VisiumHD")
-        or (technology == "Visium HD")
-    ):
-        print(
-            "Technology is Visium_HD. Going forward with pseudovisium processed colnames.\n"
-        )
-        x_colname = "x"
-        y_colname = "y"
-        feature_colname = "gene"
-        cell_id_colname = "barcode"
-        count_colname = "count"
-        #coord_to_um_conversion = 1
-
-    if technology == "seqFISH":
-        print("Technology is seqFISH. Going forward with default column names.\n")
-        x_colname = "x"
-        y_colname = "y"
-        feature_colname = "name"
-        cell_id_colname = "cell"
-        count_colname = "NA"
-        #coord_to_um_conversion = 1
-
-    if technology == "Curio":
-        print("Technology is Curio. Going forward with default column names.\n")
-        x_colname = "x"
-        y_colname = "y"
-        feature_colname = "gene"
-        cell_id_colname = "barcode"
-        count_colname = "count"
-        #coord_to_um_conversion = 1
-
-    if (technology == "Zarr") or technology == ("SpatialData") or (technology == "AnnData"):
-        print("Technology is Zarr/SpatialData/AnnData. Going forward with default column names.\n")
-        x_colname = "x"
-        y_colname = "y"
-        feature_colname = "gene"
-        cell_id_colname = "barcode"
-        count_colname = "count"
-
-    else:
-        print("Technology not recognized. Going forward with set column names.\n")
-
-    (
-        hexagon_counts,
-        unique_hexagons,
-        unique_features,
-        hexagon_cell_counts,
-        hexagon_quality,
-        probe_quality,
-    ) = process_csv_file(
-        csv_file,
-        bin_size,
-        batch_size,
-        technology,
-        feature_colname,
-        x_colname,
-        y_colname,
-        cell_id_colname,
-        quality_colname=quality_colname,
-        max_workers=max_workers,
-        quality_filter=quality_filter,
-        count_colname=count_colname,
-        smoothing=smoothing,
-        quality_per_hexagon=quality_per_hexagon,
-        quality_per_probe=quality_per_probe,
-        h5_x_colname=h5_x_colname,
-        h5_y_colname=h5_y_colname,
-        coord_to_um_conversion=coord_to_um_conversion,
-        spot_diameter=spot_diameter,
-        hex_square=hex_square
-    )
-
-    # Create Pseudovisium output
-    create_pseudovisium(
-        output_path=output_path,
-        hexagon_counts=hexagon_counts,
-        unique_hexagons=unique_hexagons,
-        unique_features=unique_features,
-        hexagon_cell_counts=hexagon_cell_counts,
-        hexagon_quality=hexagon_quality,
-        probe_quality=probe_quality,
-        cell_id_colname=cell_id_colname,
-        img_file_path=img_file_path,
-        shift_to_positive=shift_to_positive,
-        project_name=project_name,
-        alignment_matrix_file=alignment_matrix_file,
-        image_pixels_per_um=image_pixels_per_um,
-        bin_size=bin_size,
-        tissue_hires_scalef=tissue_hires_scalef,
-        pixel_to_micron=pixel_to_micron,
-        max_workers=max_workers,
-        spot_diameter=spot_diameter,
-    )
-
-    # save all arguments in a json file called arguments.json
-    print("Creating arguments.json file in output path.\n")
-    arguments = {
-        "csv_file": csv_file,
-        "img_file_path": img_file_path,
-        "bin_size": bin_size,
-        "output_path": output_path,
-        "batch_size": batch_size,
-        "alignment_matrix_file": alignment_matrix_file,
-        "project_name": project_name,
-        "image_pixels_per_um": image_pixels_per_um,
-        "tissue_hires_scalef": tissue_hires_scalef,
-        "technology": technology,
-        "feature_colname": feature_colname,
-        "x_colname": x_colname,
-        "y_colname": y_colname,
-        "cell_id_colname": cell_id_colname,
-        "pixel_to_micron": pixel_to_micron,
-        "quality_colname": quality_colname,
-        "quality_filter": quality_filter,
-        "count_colname": count_colname,
-        "smoothing": smoothing,
-        "quality_per_hexagon": quality_per_hexagon,
-        "quality_per_probe": quality_per_probe,
-        "max_workers": max_workers,
-        "folder_or_object": folder_or_object,
-        "h5_x_colname": h5_x_colname,
-        "h5_y_colname": h5_y_colname,
-        "coord_to_um_conversion": coord_to_um_conversion,
-        "spot_diameter": spot_diameter,
-        "hex_square": hex_square,
-    }
-
-    with open(
-        output_path + "/pseudovisium/" + project_name + "/arguments.json", "w"
-    ) as f:
-        json.dump(arguments, f)
-
-    end = time.time()
-    print(f"Time taken: {end - start} seconds\n")
-    #except Exception as e:
-    #    print("Error: Unable to generate Pseudovisium output.")
-    #    print(f"Error details: {str(e)}")
+        end = time.time()
+        print(f"Time taken: {end - start} seconds\n")
+    except Exception as e:
+        print("Error: Unable to generate Pseudovisium output.")
+        print(f"Error details: {str(e)}")
 
 
 
@@ -1604,12 +1669,19 @@ def adata_to_adata(adata, bin_size, bin_type = 'hex'):
     Performs spatial binning (hexagonal or square) on an AnnData object based on spatial coordinates.
 
     Args:
-        adata (AnnData): The input AnnData object containing spatial information in adata.obsm["spatial"].
-        bin_size (float): The size of the bin (hexagon or square) for binning.
-        bin_type (str): The type of binning to perform. Either 'hex' for hexagonal or 'square' for square binning.
+        adata (AnnData): Input AnnData object containing spatial information in adata.obsm["spatial"].
+        bin_size (float): Size of the spatial bin:
+            - For hexagonal bins: distance from center to middle of edge (apothem)
+            - For square bins: length of a side
+        bin_type (str): Type of binning: 'hex' for hexagonal or 'square' for square bins.
 
     Returns:
-        AnnData: A new AnnData object with spatially binned data.
+        AnnData: New AnnData object with binned data, containing:
+            - Aggregated expression matrix
+            - Bin coordinates in obsm["spatial"]
+            - Number of cells per bin in obs["n_cells"]
+            - Original metadata and variables
+            - Additional binning information in uns
     """
 
     # Extract spatial coordinates
@@ -1667,34 +1739,29 @@ def adata_to_adata(adata, bin_size, bin_type = 'hex'):
 
 def spatialdata_to_spatialdata(sdata, table_id, new_table_id=None, new_shapes_id=None, bin_size=50, bin_type="hex"):
     """
-    Converts spatial data from a SpatialData object to a new SpatialData object with spatially binned data,
+    Converts spatial data from a SpatialData object to a new SpatialData object with binned data,
     creating both a binned table and corresponding spatial tessellation.
 
     Args:
-        sdata (SpatialData): Input SpatialData object containing the spatial data to be binned.
+        sdata (SpatialData): Input SpatialData object containing spatial data.
         table_id (str): Identifier for the table in sdata to be binned.
-        new_table_id (str, optional): Identifier for the new binned table. If None, defaults to 
+        new_table_id (str, optional): Identifier for the new binned table. Defaults to
             "{table_id}_PV_bins_{bin_size}_{bin_type}".
-        new_shapes_id (str, optional): Identifier for the new tessellation shapes. If None, defaults to
+        new_shapes_id (str, optional): Identifier for the new tessellation shapes. Defaults to
             "{table_id}_tessellation_{bin_size}_{bin_type}".
-        bin_size (float, default=50): Size parameter for binning:
-            - For hexagonal bins: the apothem (distance from center to middle of edge)
+        bin_size (float, optional): Size parameter for binning:
+            - For hexagonal bins: distance from center to middle of edge (apothem)
             - For square bins: length of a side
-        bin_type (str, default="hex"): Type of binning tessellation to create:
-            - "hex": hexagonal binning
-            - "square": square binning
-
-    Returns:
-        SpatialData: Modified input SpatialData object containing:
-            - New binned table with identifier new_table_id
-            - New tessellation shapes with identifier new_shapes_id
-            - Original data remains unchanged
+        bin_type (str, optional): Type of binning: "hex" for hexagonal or "square".
 
     Notes:
-        - The function modifies the input SpatialData object in-place by adding new components
+        - Modifies the input SpatialData object in-place by adding:
+            - New binned table with identifier new_table_id
+            - New tessellation shapes with identifier new_shapes_id
+        - Original data remains unchanged
         - Binned table includes spatial coordinates in obsm["spatial"]
-        - Generated tessellation is stored as a ShapesModel in the shapes component
-        - Location IDs and region information are automatically generated and stored in the table
+        - Generated tessellation is stored as a ShapesModel
+        - Location IDs and region information are automatically generated and stored
     """
     
 
@@ -1709,7 +1776,7 @@ def spatialdata_to_spatialdata(sdata, table_id, new_table_id=None, new_shapes_id
     new_shapes_id = new_shapes_id.replace(".","_")
 
     #extract anndata_table
-    extracted_table = sdata.tables["square_016um"].copy()
+    extracted_table = sdata.tables[table_id].copy()
 
 
     print("Performing spatial binning...\n")
