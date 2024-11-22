@@ -414,6 +414,7 @@ def process_csv_file(
     n_process = min(max_workers, multiprocessing.cpu_count())
     print(f"Processing batches using {n_process} processes\n")
 
+    print("csv_file: ", csv_file)
     is_parquet = csv_file.endswith(".parquet")
 
     with concurrent.futures.ProcessPoolExecutor(max_workers=max_workers) as executor:
@@ -1459,7 +1460,7 @@ def generate_pv(
         )
         # Automatically calculating image_pixels_per_um from the scalefactors_json.json file
         image_pixels_per_um = anndata_to_transcripts_pq(
-            folder_or_object, folder_or_object + "/transcripts.parquet", technology
+            folder_or_object, folderpath + "/transcripts.parquet", technology
         )
         csv_file = folderpath + "/transcripts.parquet"
 
