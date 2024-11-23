@@ -1454,6 +1454,8 @@ def generate_pv(
         (technology == "Visium_HD")
         or (technology == "VisiumHD")
         or (technology == "Visium HD")
+        #or contains both Visium and HD
+        or ("Visium" in technology and "HD" in technology)
     ):
         print(
             "Technology is Visium_HD. Generating transcripts.parquet file from Visium HD files.\n"
@@ -1504,7 +1506,7 @@ def generate_pv(
         )
         csv_file = folderpath + "/transcripts.parquet"
 
-    if technology == "Xenium":
+    if (technology == "Xenium") or ("Xenium" in technology):
         print("Technology is Xenium. Going forward with default column names.\n")
         x_colname = "x_location"
         y_colname = "y_location"
@@ -1514,7 +1516,7 @@ def generate_pv(
         count_colname = "NA"
         # coord_to_um_conversion = 1
 
-    elif technology == "Vizgen":
+    elif (technology == "Vizgen") or ("Vizgen" in technology):
         print("Technology is Vizgen. Going forward with default column names.\n")
         x_colname = "global_x"
         y_colname = "global_y"
@@ -1523,7 +1525,7 @@ def generate_pv(
         count_colname = "NA"
         # coord_to_um_conversion = 1
 
-    elif (technology == "Nanostring") or (technology == "CosMx"):
+    elif (technology == "Nanostring") or (technology == "CosMx") or ("CosMx" in technology) or ("Nanostring" in technology):
         print(
             "Technology is Nanostring. Going forward with default column names.\n"
         )
@@ -1546,6 +1548,8 @@ def generate_pv(
         (technology == "Visium_HD")
         or (technology == "VisiumHD")
         or (technology == "Visium HD")
+        #or contains both Visium and HD
+        or ("Visium" in technology and "HD" in technology)
     ):
         print(
             "Technology is Visium_HD. Going forward with pseudovisium processed colnames.\n"
@@ -1812,7 +1816,7 @@ def spatialdata_to_spatialdata(
 
     def create_tessellation(cx, cy, bin_size, bin_type):
         if bin_type == "hex":
-            radius = np.sqrt(3 / 2) * bin_size
+            radius =  bin_size / (np.sqrt(3) / 2)
             # Generate the six points of the hexagon
             angles = np.linspace(0, 2 * np.pi, 7)  # 0 to 360 degrees (2π radians)
             # add 30 degrees to the angle
