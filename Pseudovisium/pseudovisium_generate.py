@@ -40,8 +40,9 @@ def closest_hex(x, y, bin_size, spot_diameter=None):
 
     Returns:
         tuple or str: The closest hexagon centroid coordinates (x, y) rounded to the nearest integer.
-                     Returns "-1" as a string if spot_diameter is provided and the distance to
-                     the closest hexagon centroid is greater than half the spot diameter.
+                     Returns return (-4269.0, -4269.0) as a tuple if spot_diameter is provided and the distance to
+                     the closest hexagon centroid is greater than half the spot diameter. Entries with this value are automatically
+                     filtered out later on.
     """
     spot = spot_diameter is not None
 
@@ -111,7 +112,7 @@ def closest_hex(x, y, bin_size, spot_diameter=None):
         if np.sqrt((x - closest[0]) ** 2 + (y - closest[1]) ** 2) < spot_diameter / 2:
             return closest
         else:
-            return str(-1)
+            return (-4269.0, -4269.0)
     else:
         return closest
 
@@ -218,7 +219,7 @@ def process_batch(
         )
     df_batch["hexagons"] = hexagons
     # filter out rows where hexagon is -1
-    df_batch = df_batch[df_batch["hexagons"] != "-1"]
+    df_batch = df_batch[df_batch["hexagons"] != (-4269.0, -4269.0)]
 
     # create a dok matrix to store the counts, which is
     counts = (
