@@ -452,7 +452,7 @@ def stitch_images(
     new_tissue_positions_list = pd.DataFrame(
         columns=["barcode", "in_tissue", "tissue_col", "tissue_row", "x", "y"]
     )
-    stitched_image = np.zeros(
+    stitched_image = np.ones(
         (
             int(max_x_range * scalefactor_hires * grid[0]),
             int(max_y_range * scalefactor_hires * grid[1]),
@@ -488,7 +488,19 @@ def stitch_images(
             )
             new_tissue_positions_list.reset_index(drop=True, inplace=True)
 
-            image_to_add = nested_dict[dataset_names[dataset_idx]]["image"]
+            image_to_add = nested_dict[dataset_names[dataset_idx]]["image"].copy()
+            
+            # Normalize image to 0-1 range if needed
+            if image_to_add.dtype != np.uint8 and (image_to_add.max() > 1 or image_to_add.min() < 0):
+                image_to_add = (image_to_add - image_to_add.min()) / (image_to_add.max() - image_to_add.min())
+            elif image_to_add.dtype == np.uint8:
+                image_to_add = image_to_add.astype(float) / 255.0
+
+            # Convert grayscale to RGB if needed
+            if len(image_to_add.shape) == 2:
+                image_to_add = np.stack((image_to_add,) * 3, axis=-1)
+
+
             if len(image_to_add.shape) == 2:
                 image_to_add = np.stack((image_to_add,) * 3, axis=-1)
             image_to_add = np.pad(
