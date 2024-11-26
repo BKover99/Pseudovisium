@@ -671,13 +671,13 @@ def create_pseudovisium(
         "tissue_hires_scalef": tissue_hires_scalef,
         "tissue_lowres_scalef": tissue_hires_scalef / 10,
         "fiducial_diameter_fullres": 0,
-        "hexagon_diameter": 2 * bin_size,
+        "hexagon_diameter": 2 * bin_size
     }
 
     if spot:
-        scalefactors["spot_diameter_fullres"] = spot_diameter * image_pixels_per_um
-    else:
-        scalefactors["spot_diameter_fullres"] = 2 * bin_size * image_pixels_per_um
+        scalefactors["actual_spot_diameter_fullres"] = spot_diameter * image_pixels_per_um
+    
+    scalefactors["spot_diameter_fullres"] = 2 * bin_size * image_pixels_per_um
 
     print("Creating scalefactors_json.json file in spatial folder.\n")
     with open(folderpath + "/spatial/scalefactors_json.json", "w") as f:
