@@ -162,7 +162,7 @@ def generate_qc_report(
 
         if not visium:
             arguments = json.load(open(folder + "arguments.json"))
-            hexagon_size = arguments["hexagon_size"]
+            bin_size = arguments["bin_size"]
             image_pixels_per_um = arguments["image_pixels_per_um"]
         else:
             # load scalefactors
@@ -170,7 +170,7 @@ def generate_qc_report(
             spot_diam = scalefactors["spot_diameter_fullres"]
             real_diam = 55
             micron_per_pixel = real_diam / spot_diam
-            hexagon_size = 50
+            bin_size = 50
             image_pixels_per_um = 1
             tissue_positions_list["x"] = tissue_positions_list["x"] * micron_per_pixel
             tissue_positions_list["y"] = tissue_positions_list["y"] * micron_per_pixel
@@ -432,7 +432,7 @@ def generate_qc_report(
             "matrix_joined": matrix_joined,
             "features": features,
             "tissue_positions_list": tissue_positions_list,
-            "hexagon_size": hexagon_size,
+            "bin_size": bin_size,
             "image_pixels_per_um": image_pixels_per_um,
             "barcodes": barcodes,
             "probe_sum_stripplot_df": plot_df,
@@ -1071,7 +1071,7 @@ def generate_dashboard_html(
                 )
                 hexagon_html = hexagon_plot_to_html(
                     hexagon_df,
-                    replicate_data["hexagon_size"],
+                    replicate_data["bin_size"],
                     replicate_data["image_pixels_per_um"],
                     gene_name,
                     replicate_data["dataset_name"],
@@ -1112,7 +1112,7 @@ def generate_dashboard_html(
         )
         hexagon_html = hexagon_plot_to_html(
             unique_features_per_hexagon,
-            replicate_data["hexagon_size"],
+            replicate_data["bin_size"],
             replicate_data["image_pixels_per_um"],
             "nFeature",
             replicate_data["dataset_name"],
@@ -1141,7 +1141,7 @@ def generate_dashboard_html(
             cell_density_df = replicate_data["cell_density_df"]
             hexagon_html = hexagon_plot_to_html(
                 cell_density_df,
-                replicate_data["hexagon_size"],
+                replicate_data["bin_size"],
                 replicate_data["image_pixels_per_um"],
                 "Density",
                 replicate_data["dataset_name"],
@@ -1173,7 +1173,7 @@ def generate_dashboard_html(
             hexagon_quality = get_quality_per_hexagon(replicate_data["matrix_joined"])
             hexagon_html = hexagon_plot_to_html(
                 hexagon_quality,
-                replicate_data["hexagon_size"],
+                replicate_data["bin_size"],
                 replicate_data["image_pixels_per_um"],
                 "Quality",
                 replicate_data["dataset_name"],
@@ -1203,7 +1203,7 @@ def generate_dashboard_html(
         )
         hexagon_html = hexagon_plot_to_html(
             total_counts_per_hexagon,
-            replicate_data["hexagon_size"],
+            replicate_data["bin_size"],
             replicate_data["image_pixels_per_um"],
             "Total exp",
             replicate_data["dataset_name"],
@@ -1940,7 +1940,7 @@ def get_df_for_gene(matrix_joined, tissue_positions_list, gene_name, normalised=
 
 def hexagon_plot_to_html(
     hexagon_df,
-    hexagon_size,
+    bin_size,
     image_pixels_per_um,
     gene_name,
     dataset_name,
@@ -1953,7 +1953,7 @@ def hexagon_plot_to_html(
 
     Args:
         hexagon_df (pandas.DataFrame): DataFrame containing hexagon information.
-        hexagon_size (float): Size of the hexagons.
+        bin_size (float): Size of the hexagons.
         image_pixels_per_um (float): Number of image pixels per micrometer.
         gene_name (str): Name of the gene being plotted.
         dataset_name (str): Name of the dataset.
@@ -1979,7 +1979,7 @@ def hexagon_plot_to_html(
         hexagon = RegularPolygon(
             (hx, hy),
             numVertices=6,
-            radius=hexagon_size * image_pixels_per_um / 0.865,
+            radius=bin_size * image_pixels_per_um / 0.865,
             alpha=0.2,
             edgecolor="k",
             orientation=np.pi / 2,
