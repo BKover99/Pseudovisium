@@ -2232,7 +2232,7 @@ def process_gene(gene, matrix_joined, tissue_positions_list):
     )
     points = [Point(xy) for xy in zip(gene_df["x"], gene_df["y"])]
     gene_gdf = gpd.GeoDataFrame(gene_df, geometry=points)
-    w = weights.KNN.from_dataframe(gene_gdf, k=18)
+    w = weights.KNN.from_dataframe(gene_gdf, k=6)
     w.transform = "R"
     mi = Moran(gene_df["counts"], w, permutations=0)
     return {"gene": gene, "Morans_I": mi.I}
@@ -2314,7 +2314,11 @@ def get_morans_i(
             return res_df
 
         print("folder", folder)
-        adata = sq.read.visium(folder, library_id="library")
+        try:
+            adata = sq.read.visium(folder, library_id="library")
+        else:
+            adata = sq.read.visium(folder, library_id="library",load_images=False)
+        
         adata.var_names_make_unique()
         print("Filtering genes and cells")
         sc.pp.filter_cells(adata, min_counts=100)
@@ -2322,7 +2326,7 @@ def get_morans_i(
         sc.pp.normalize_total(adata)
         sc.pp.log1p(adata)
         print("Calculating spatial neighbors")
-        sq.gr.spatial_neighbors(adata, radius=250, coord_type="generic", delaunay=True)
+        sq.gr.spatial_neighbors(adata, radius=150, coord_type="generic", delaunay=False)
         print("Calculating Moran's I")
         sq.gr.spatial_autocorr(adata, mode="moran", n_perms=1, n_jobs=max_workers)
         df = adata.uns["moranI"]
@@ -2348,7 +2352,7 @@ def get_morans_i(
         )
         points = [Point(xy) for xy in zip(mat["x"], mat["y"])]
         gene_gdf = gpd.GeoDataFrame(mat, geometry=points)
-        w = weights.KNN.from_dataframe(gene_gdf, k=18)
+        w = weights.KNN.from_dataframe(gene_gdf, k=6)
         w.transform = "R"
         mi = esda.Moran(mat["Gene_ID_y"], w, permutations=0)
         return mi.I
@@ -2357,7 +2361,7 @@ def get_morans_i(
         mat = matrix_joined.copy()
         points = [Point(xy) for xy in zip(mat["x"], mat["y"])]
         gene_gdf = gpd.GeoDataFrame(mat, geometry=points)
-        w = weights.KNN.from_dataframe(gene_gdf, k=18)
+        w = weights.KNN.from_dataframe(gene_gdf, k=6)
         w.transform = "R"
         mi = esda.Moran(mat["counts"], w, permutations=0)
         return mi.I
@@ -2376,7 +2380,7 @@ def get_morans_i(
         )
         points = [Point(xy) for xy in zip(mat["x"], mat["y"])]
         gene_gdf = gpd.GeoDataFrame(mat, geometry=points)
-        w = weights.KNN.from_dataframe(gene_gdf, k=18)
+        w = weights.KNN.from_dataframe(gene_gdf, k=6)
         w.transform = "R"
         mi = esda.Moran(mat["Counts"], w, permutations=0)
         return mi.I
@@ -2395,7 +2399,7 @@ def get_morans_i(
         )
         points = [Point(xy) for xy in zip(mat["x"], mat["y"])]
         gene_gdf = gpd.GeoDataFrame(mat, geometry=points)
-        w = weights.KNN.from_dataframe(gene_gdf, k=18)
+        w = weights.KNN.from_dataframe(gene_gdf, k=6)
         w.transform = "R"
         mi = esda.Moran(mat["Quality"], w, permutations=0)
         return mi.I
@@ -2406,7 +2410,7 @@ def get_morans_i(
         )
         points = [Point(xy) for xy in zip(gene_df["x"], gene_df["y"])]
         gene_gdf = gpd.GeoDataFrame(gene_df, geometry=points)
-        w = weights.KNN.from_dataframe(gene_gdf, k=18)
+        w = weights.KNN.from_dataframe(gene_gdf, k=6)
         w.transform = "R"
         mi = esda.Moran(gene_df["counts"], w, permutations=0)
         return mi.I
