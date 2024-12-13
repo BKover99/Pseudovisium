@@ -2316,7 +2316,7 @@ def get_morans_i(
         print("folder", folder)
         try:
             adata = sq.read.visium(folder, library_id="library")
-        else:
+        except:
             adata = sq.read.visium(folder, library_id="library",load_images=False)
         
         adata.var_names_make_unique()
