@@ -24,12 +24,44 @@ import subprocess
 import warnings
 import subprocess
 import datetime
+import scanpy as sc
+import scipy.io
 
 # import multipletests
 from statsmodels.stats.multitest import multipletests
 
 # throughout remove Warnings
 warnings.filterwarnings("ignore", category=FutureWarning)
+
+
+
+
+
+def from_h5_to_files(fold):
+    """
+    Convert filtered_feature_bc_matrix.h5 file to features.tsv, barcodes.tsv, and matrix.mtx files.
+
+    Args:
+        fold (str): Path to the folder containing the filtered_feature_bc_matrix.h5 file.
+
+    Returns:
+        None
+    """
+    # look for h5 ending file
+    h5file = [f for f in os.listdir(fold) if f.endswith(".h5")][0]
+    ad = sc.read_10x_h5(fold + h5file)
+    ad.var_names_make_unique()
+    features = pd.DataFrame(ad.var.index)
+    features[1] = features[0]
+    features[2] = "Gene Expression"
+    features.to_csv(
+        os.path.join(fold, "features.tsv"), sep="\t", index=False, header=False
+    )
+    pd.DataFrame(ad.obs.index).to_csv(
+        os.path.join(fold, "barcodes.tsv"), sep="\t", index=False, header=False
+    )
+    scipy.io.mmwrite(os.path.join(fold, "matrix.mtx"), ad.X.T)
+
 
 
 def generate_qc_report(
@@ -98,12 +130,40 @@ def generate_qc_report(
             "x",
             "y",
         ]
-        matrix = pd.read_csv(folder + "matrix.mtx", header=3, sep=" ")
+
+
+        barcodes_file = folder + "/barcodes.tsv"
+        features_file = folder + "/features.tsv"
+        matrix_file = folder + "/matrix.mtx"
+        filtered_h5_file = folder + "/filtered_feature_bc_matrix.h5"
+
+        if not os.path.exists(filtered_h5_file):
+            h5file = [f for f in os.listdir(folder) if f.endswith(".h5")]
+            #find the one that also contains filtered
+            if len(h5file) > 1:
+                h5file = [f for f in h5file if "filtered" in f]
+            else:
+                h5file = h5file[0]
+            #rename simply as filtered_feature_bc_matrix.h5
+            os.rename(folder + h5file, filtered_h5_file)
+
+
+        if (
+            not os.path.exists(barcodes_file)
+            or not os.path.exists(features_file)
+            or not os.path.exists(matrix_file)
+            ):
+                print(
+                    f"Missing files in {folder}. Attempting to generate from filtered_feature_bc_matrix.h5."
+                )
+                from_h5_to_files(folder)
+
+        matrix = pd.read_csv(matrix_file, header=3, sep=" ")
         matrix.columns = ["Gene_ID", "Barcode_ID", "Counts"]
-        features = pd.read_csv(folder + "features.tsv", header=None, sep="\t")
+        features = pd.read_csv(features_file, header=None, sep="\t")
         features.columns = ["Gene_ID", "Gene_Name", "Type"]
         features["index_col"] = features.index + 1
-        barcodes = pd.read_csv(folder + "barcodes.tsv", header=None, sep="\t")
+        barcodes = pd.read_csv(barcodes_file, header=None, sep="\t")
         barcodes.columns = ["Barcode_ID"]
         barcodes["index_col"] = barcodes.index + 1
 
@@ -439,6 +499,7 @@ def generate_qc_report(
         }
 
         if include_morans_i:
+
             replicate_data["morans_i"] = get_morans_i(
                 "all",
                 matrix_joined,
@@ -462,6 +523,7 @@ def generate_qc_report(
             replicate_data["morans_i_stripplot_df"] = plot_df_morans_i
 
         if cell_info:
+
             replicate_data["metrics_table_data"]["Total number of cells"] = len(
                 pv_cell_hex["Cell_ID"].unique()
             )
@@ -485,6 +547,7 @@ def generate_qc_report(
             ] = np.round(density_morans_i, 5)
 
         if quality_per_hexagon:
+
             replicate_data["metrics_table_data"][
                 "Pct hexagons with quality below 20"
             ] = np.round(pct_hexagons_q_below_20, 5)
