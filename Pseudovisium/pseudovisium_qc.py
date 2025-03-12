@@ -2389,7 +2389,7 @@ def get_morans_i(
         sc.pp.normalize_total(adata)
         sc.pp.log1p(adata)
         print("Calculating spatial neighbors")
-        sq.gr.spatial_neighbors(adata, radius=150, coord_type="generic", delaunay=False)
+        sq.gr.spatial_neighbors(adata, radius=150, coord_type="generic", delaunay=True)
         #remove datapoints with no neighbours
         adata = adata[adata.obsp["spatial_connectivities"].sum(1) > 0]
         print("Calculating Moran's I")
