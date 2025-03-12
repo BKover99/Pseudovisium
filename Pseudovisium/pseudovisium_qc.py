@@ -2390,6 +2390,8 @@ def get_morans_i(
         sc.pp.log1p(adata)
         print("Calculating spatial neighbors")
         sq.gr.spatial_neighbors(adata, radius=150, coord_type="generic", delaunay=False)
+        #remove datapoints with no neighbours
+        adata = adata[adata.obsp["spatial_connectivities"].sum(1) > 0]
         print("Calculating Moran's I")
         sq.gr.spatial_autocorr(adata, mode="moran", n_perms=1, n_jobs=max_workers)
         df = adata.uns["moranI"]
