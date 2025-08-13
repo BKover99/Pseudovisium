@@ -864,7 +864,7 @@ def create_pseudovisium(
     if img_file_path:
         print("Image provided at {0}\n".format(img_file_path))
         # if img_filepath is tiff
-        if img_file_path.endswith(".tiff") or img_file_path.endswith(".tif"):
+        if img_file_path.endswith(".tiff") or img_file_path.endswith(".tif") or img_file_path.endswith(".btf"):
             image = tifffile.imread(img_file_path)
         # elif png
         elif img_file_path.endswith(".png"):
