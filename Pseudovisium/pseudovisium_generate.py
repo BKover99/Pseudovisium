@@ -179,7 +179,8 @@ def process_batch(
             - Dictionary of bin quality metrics (if quality_per_hexagon True)
             - Dictionary of probe quality metrics (if quality_per_probe True)
     """
-
+    df_batch = df_batch.copy()
+    
     df_batch[x_colname] = pd.to_numeric(df_batch[x_colname], errors="coerce")
     df_batch[y_colname] = pd.to_numeric(df_batch[y_colname], errors="coerce")
 
@@ -219,7 +220,7 @@ def process_batch(
         )
     df_batch["hexagons"] = hexagons
     # filter out rows where hexagon is -1
-    df_batch = df_batch[df_batch["hexagons"] != (-4269.0, -4269.0)]
+    df_batch = df_batch[df_batch["hexagons"] != "(-4269.0, -4269.0)"].copy()
 
     # create a dok matrix to store the counts, which is
     counts = (
